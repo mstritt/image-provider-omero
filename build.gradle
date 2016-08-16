@@ -1,0 +1,95 @@
+/*
+ *     Orbit, a versatile image analysis software for biological image-based quantification.
+ *     Copyright (C) 2009 - 2016 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *
+ *     This program is free software: you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation, either version 3 of the License, or
+ *     (at your option) any later version.
+ *
+ *     This program is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ *     You should have received a copy of the GNU General Public License
+ *     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+def group = 'com.actelion.research'
+ext.versionDef = '1.0.8'
+
+apply plugin: 'java'
+apply plugin: 'maven-publish'
+if (file('custom.gradle').exists()) {
+    apply from: 'custom.gradle'
+}
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+if (JavaVersion.current().isJava8Compatible()) {
+    allprojects {
+        tasks.withType(Javadoc) {
+            options.addStringOption('Xdoclint:none', '-quiet')
+        }
+    }
+}
+task sourceJar(type: Jar) {
+    from sourceSets.main.allJava
+}
+task docJar(type: Jar, dependsOn: 'javadoc') {
+    from javadoc.destinationDir
+}
+
+publishing {
+    publications {
+        mavenJava(org.gradle.api.publish.maven.MavenPublication) {
+            groupId group
+            artifactId 'image-provider-omero'
+            version versionDef
+            from components.java
+            artifact sourceJar {
+                classifier "sources"
+            }
+            artifact docJar {
+                classifier "javadoc"
+            }
+            pom.withXml {
+                asNode().appendNode('description', 'Orbit Image Provider Omero')
+            }
+        }
+    }
+}
+
+
+dependencies {
+    compile 'com.actelion.research:liborbitcommon:1.0.7.2'
+    compile 'ch.qos.logback:logback-classic:1.1.3'
+    compile 'com.sun.media:jai-codec:1.1.3'
+    compile 'javax.media:jai-core:1.1.3'
+    compile 'org.apache.commons:commons-math3:3.5'
+    testCompile 'junit:junit:4.+'
+
+    compile (group: 'edu.ucar', name:'netcdf', version:'4.3.22')     // replacement of 4.3.19 used by formats-gpl which has a buggy pom (version LATEST does not work with gradle)
+    compile (group: 'ome', name:'formats-gpl', version:'5.1.9') {
+        exclude (module: 'netcdf')
+    }
+
+    compile(group: 'org.springframework.ldap', name: 'spring-ldap', version: '1.3.0.RELEASE', classifier: 'all'){
+        exclude group: 'org.testng', module: 'testng'
+    }
+    compile(group: 'omero', name: 'blitz', version: '5.2.5-ice36-b28') {
+        exclude group: 'org.springframework.ldap', module: 'spring-ldap'
+        exclude group: 'org.testng', module: 'testng'
+        exclude group: 'hsqldb', module: 'hsqldb'
+    }
+
+}
+
