@@ -395,7 +395,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
      * @return URL
      * e.g. http://localhost:8080/webgateway/render_image/5
      * http://root:omero@localhost:8080/webgateway/render_image/5
-     * @see(https://www.openmicroscopy.org/site/support/omero5.2/developers/Web/WebGateway.html) <p>
+     * see https://www.openmicroscopy.org/site/support/omero5.2/developers/Web/WebGateway.html <p>
      * Authentification does currently not work. User has to be logged in already, e.g. via Omero web interace.
      * Maybe username:password@ can be used?
      * </p>
