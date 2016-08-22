@@ -70,7 +70,7 @@ publishing {
 
 
 dependencies {
-    compile 'com.actelion.research:liborbitcommon:1.0.8'
+    compile 'com.actelion.research:lib-orbit-common:1.0.8'
     compile 'ch.qos.logback:logback-classic:1.1.3'
     compile 'com.sun.media:jai-codec:1.1.3'
     compile 'javax.media:jai-core:1.1.3'
