@@ -39,6 +39,9 @@ repositories {
     maven {
         url 'http://artifacts.openmicroscopy.org/artifactory/maven/'
     }
+    maven {
+        url 'https://repository.jboss.org/nexus/content/repositories/thirdparty-releases/' // for jai-codec
+    }
 }
 
 if (JavaVersion.current().isJava8Compatible()) {
