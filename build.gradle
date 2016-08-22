@@ -32,6 +32,13 @@ targetCompatibility = 1.7
 repositories {
     mavenLocal()
     mavenCentral()
+    maven {
+        name 'Unidata'
+        url 'https://artifacts.unidata.ucar.edu/content/repositories/unidata-releases'
+    }
+    maven {
+        url 'http://artifacts.openmicroscopy.org/artifactory/maven/'
+    }
 }
 
 if (JavaVersion.current().isJava8Compatible()) {
