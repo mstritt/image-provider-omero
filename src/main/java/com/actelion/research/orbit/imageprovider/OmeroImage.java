@@ -63,14 +63,16 @@ public class OmeroImage implements IOrbitImage, Closeable {
     long pixelsId;
     protected int originalBitsPerSample = 8;
     protected boolean originalWasGrayScale = false;
+    private long group = -1;
 
     public OmeroImage(long imageId, int level, final ImageProviderOmero.GatewayAndCtx gatewayAndCtx) throws ServerError, DSOutOfServiceException, OrbitImageServletException, ExecutionException, DSAccessException {
         this.gatewayAndCtx = gatewayAndCtx;
         this.imageId = imageId;
         this.level = level;
+        this.group = ImageProviderOmero.getImageGroupCached(imageId);
         // open image
         BrowseFacility browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
-        ImageData image = browse.getImage(gatewayAndCtx.getCtx(), imageId);
+        ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), imageId);
 
         this.imageName = image.getName();
         System.out.println("image name: " + imageName);
@@ -79,7 +81,7 @@ public class OmeroImage implements IOrbitImage, Closeable {
 
         RawPixelsStorePrx store = null;
         try {
-            store = gatewayAndCtx.getGateway().getPixelsStore(gatewayAndCtx.getCtx());
+            store = gatewayAndCtx.getGateway().getPixelsStore(gatewayAndCtx.getCtx(group));
             store.setPixelsId(pixelsId, false);
             this.pixelsId = pixelsId;
 
@@ -171,7 +173,7 @@ public class OmeroImage implements IOrbitImage, Closeable {
     public Raster getTileData(int tileX, int tileY) {
         RenderingEnginePrx proxy = null;
         try {
-            proxy = gatewayAndCtx.getGateway().getRenderingService(gatewayAndCtx.getCtx(), pixelsId);
+            proxy = gatewayAndCtx.getGateway().getRenderingService(gatewayAndCtx.getCtx(group), pixelsId);
             proxy.lookupPixels(pixelsId);
             if (!(proxy.lookupRenderingDef(pixelsId))) {
                 proxy.resetDefaultSettings(true);
@@ -236,7 +238,7 @@ public class OmeroImage implements IOrbitImage, Closeable {
         RawPixelsStorePrx store = null;
         try {
             //RawPixelsStorePrx store = stores.get();
-            store = gatewayAndCtx.getGateway().createPixelsStore(gatewayAndCtx.getCtx());
+            store = gatewayAndCtx.getGateway().createPixelsStore(gatewayAndCtx.getCtx(group));
             store.setPixelsId(pixelsId, false);
 
             final int levelWidth = store.getResolutionDescriptions()[level].sizeX;
@@ -296,10 +298,10 @@ public class OmeroImage implements IOrbitImage, Closeable {
         RawPixelsStorePrx store = null;
         try {
             BrowseFacility browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
-            ImageData image = browse.getImage(gatewayAndCtx.getCtx(), imageId);
+            ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), imageId);
             int numChannels = image.getDefaultPixels().getSizeC();
 
-            store = gatewayAndCtx.getGateway().createPixelsStore(gatewayAndCtx.getCtx());
+            store = gatewayAndCtx.getGateway().createPixelsStore(gatewayAndCtx.getCtx(group));
             store.setPixelsId(pixelsId, false);
             final int levelWidth = store.getResolutionDescriptions()[level].sizeX;
             final int levelHeight = store.getResolutionDescriptions()[level].sizeY;

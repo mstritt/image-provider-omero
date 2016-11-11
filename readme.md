@@ -8,6 +8,9 @@ Generic jar:
 
 Works with Omero 5.2.x (and probably with 5.1.x). For other Omero versions please change dependencies in build.gradle.
 
+### Updates:
+- Now works with all groups, not just default group
+
 ####TODO:
 - getRawDataFileUrl(): auto login / session handling (so far one has to login via webinterface first)
 - getRawDataFileUrl(): resolution level  (but only user for Android Downloader)

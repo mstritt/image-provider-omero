@@ -24,15 +24,20 @@ import com.actelion.research.orbit.dal.IOrbitImage;
 import com.actelion.research.orbit.gui.AbstractOrbitTree;
 import com.actelion.research.orbit.gui.IFileListCellRenderer;
 import com.actelion.research.orbit.imageprovider.beans.RawDataDataset;
+import com.actelion.research.orbit.imageprovider.beans.RawDataGroup;
 import com.actelion.research.orbit.imageprovider.beans.RawDataProject;
 import com.actelion.research.orbit.imageprovider.tree.JOrbitTreeOmero;
 import com.actelion.research.orbit.imageprovider.tree.TreeNodeDataset;
+import com.actelion.research.orbit.imageprovider.tree.TreeNodeGroup;
 import com.actelion.research.orbit.imageprovider.tree.TreeNodeProject;
 import com.actelion.research.orbit.utils.RawMetaFactoryData;
 import com.actelion.research.orbit.utils.RawMetaFactoryFile;
 import com.actelion.research.orbit.utils.RawUtilsCommon;
 import omero.ServerError;
-import omero.api.*;
+import omero.api.IAdminPrx;
+import omero.api.IMetadataPrx;
+import omero.api.RawFileStorePrx;
+import omero.api.ThumbnailStorePrx;
 import omero.cmd.Delete2Response;
 import omero.gateway.Gateway;
 import omero.gateway.LoginCredentials;
@@ -77,6 +82,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public static final String ANNOTATION_NOFILE_NAMESPACE = "orbit/annotation/nofile"; // special namespace for non file specific annotations
     public static final String ORBIT_METADATA_NAMESPACE = "orbit/metadata";
     private final ConcurrentHashMap<String, Object> hints = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Long> projectGroupMap = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Long> datasetGroupMap = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Long> rdfGroupMap = new ConcurrentHashMap<>();
+    public static final ConcurrentHashMap<Long, Long> metaGroupMap = new ConcurrentHashMap<>();
+
     private static final int INC = 16 * 1024;
     private String omeroUser = "";
     private String omeroPassword = "";
@@ -90,7 +100,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     protected boolean listAllSeries = false;
     protected final Map<Integer, Map<String, RawMeta>> metaHashRDF = new ConcurrentHashMap<>();
     protected final Map<Integer, Map<String, RawMeta>> metaHashRawData = new ConcurrentHashMap<>();
-    private boolean onlyOwnerObjects = true; // show/edit only objects owned by current user (otherwise show/edit all with read/write access)
+    private boolean onlyOwnerObjects = false; // show/edit only objects owned by current user (otherwise show/edit all with read/write access)
     private String configFile = "OrbitOmero.properties";
     private boolean useSSL = false;
 
@@ -188,6 +198,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         }
     }
 
+
     protected Parameters getParameterWrite() throws DSOutOfServiceException {
         return null;
     }
@@ -216,10 +227,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
      */
     @Override
     public RawData LoadRawData(int rawDataId) throws Exception {
+        long group = getDatasetGroup((long)rawDataId);
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-        Collection<DatasetData> datasets = browse.getDatasets(getGatewayAndCtx().getCtx(), /*getOwnerId(),*/ Collections.singleton((long) rawDataId));
+        Collection<DatasetData> datasets = browse.getDatasets(getGatewayAndCtx().getCtx(group), /*getOwnerId(),*/ Collections.singleton((long) rawDataId));
         if (datasets != null && datasets.size() > 0) {
-            return createRawDataDataset(datasets.iterator().next());
+            return createRawDataDataset(datasets.iterator().next(),group);
         } else {
             return null;
         }
@@ -238,23 +250,24 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public boolean UpdateRawData(RawData rd) throws Exception {
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
+        long group = getDatasetGroup(rd.getRawDataId());
         if (rd instanceof RawDataProject) {
-            Collection<ProjectData> projects = browse.getProjects(gatewayAndCtx.getCtx(), /*getOwnerId(),*/ Collections.singleton((long) rd.getRawDataId()));
+            Collection<ProjectData> projects = browse.getProjects(gatewayAndCtx.getCtx(group), /*getOwnerId(),*/ Collections.singleton((long) rd.getRawDataId()));
             if (projects == null || projects.size() == 0)
                 throw new IllegalArgumentException("project with id " + rd.getRawDataId() + " not found");
             ProjectData project = projects.iterator().next();
             project.setName(rd.getBioLabJournal());
             project.setDescription(rd.getDescription());
-            dm.updateObject(gatewayAndCtx.getCtx(), project.asProject(), getParameterWrite());
+            dm.updateObject(gatewayAndCtx.getCtx(group), project.asProject(), getParameterWrite());
             return true;
         } else if (rd instanceof RawDataDataset) {
-            Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(), /*getOwnerId(),*/ Collections.singleton((long) rd.getRawDataId()));
+            Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(group), /*getOwnerId(),*/ Collections.singleton((long) rd.getRawDataId()));
             if (datasets == null || datasets.size() == 0)
                 throw new IllegalArgumentException("dataset with id " + rd.getRawDataId() + " not found");
             DatasetData dataset = datasets.iterator().next();
             dataset.setName(rd.getBioLabJournal());
             dataset.setDescription(rd.getDescription());
-            dm.updateObject(gatewayAndCtx.getCtx(), dataset.asDataset(), getParameterWrite());
+            dm.updateObject(gatewayAndCtx.getCtx(group), dataset.asDataset(), getParameterWrite());
             return true;
         } else {
             throw new IllegalArgumentException("RawData object must be instance of RawDataProject or RawDataDataset, but is " + rd.getClass().getName());
@@ -264,20 +277,22 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public boolean UpdateRawDataFile(RawDataFile rdf) throws Exception {
+        long group = getRdfGroup(rdf);
         BrowseFacility browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
-        ImageData image = browse.getImage(gatewayAndCtx.getCtx(), rdf.getRawDataFileId());
+        ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), rdf.getRawDataFileId());
         image.setName(rdf.getFileName());
-        dm.updateObject(gatewayAndCtx.getCtx(), image.asImage(), getParameterWrite());
+        dm.updateObject(gatewayAndCtx.getCtx(group), image.asImage(), getParameterWrite());
         return true;
     }
 
 
     @Override
     public RawDataFile LoadRawDataFile(int rdfId) throws Exception {
+        long group = getImageGroup((long)rdfId);
         BrowseFacility browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
-        ImageData image = browse.getImage(gatewayAndCtx.getCtx(), rdfId);
-        return createRawDataFile(image);
+        ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), rdfId);
+        return createRawDataFile(image,group);
     }
 
     @Override
@@ -343,18 +358,21 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     }
 
     public List<RawDataFile> LoadRawDataFilesSearchGeneric(String search, int limit) throws Exception {
+        List<RawDataFile> rdfList = new ArrayList<>();
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
         String query_string = "select i from Image i where UPPER(name) like :search";
         ParametersI p = new ParametersI();
         p.add("search", rstring(search.toUpperCase()));
         p.page(0, limit);
-        List<IObject> results = gatewayAndCtx.getGateway().getQueryService(gatewayAndCtx.getCtx()).findAllByQuery(query_string, p);
-        List<RawDataFile> rdfList = new ArrayList<>(results.size());
-        for (IObject result : results) {
-            Image image = (Image) result;
-            ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(), image.getId().getValue());
-            if (imageData.getSeries() == 0 || listAllSeries) {
-                rdfList.add(createRawDataFile(imageData));
+        for (RawData rdGroup: loadGroups()) {
+            long group = rdGroup.getRawDataId();
+            List<IObject> results = gatewayAndCtx.getGateway().getQueryService(gatewayAndCtx.getCtx(group)).findAllByQuery(query_string, p);
+            for (IObject result : results) {
+                Image image = (Image) result;
+                ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(group), image.getId().getValue());
+                if (imageData.getSeries() == 0 || listAllSeries) {
+                    rdfList.add(createRawDataFile(imageData,group));
+                }
             }
         }
         Collections.sort(rdfList, new Comparator<RawDataFile>() {
@@ -436,9 +454,10 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
 
     public BufferedImage getThumbnail(RawDataFile rdf) throws Exception {
+        long group = getRdfGroup(rdf);
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-        ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(), rdf.getRawDataFileId());
-        ThumbnailStorePrx store = gatewayAndCtx.getGateway().getThumbnailService(gatewayAndCtx.getCtx());
+        ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(group), rdf.getRawDataFileId());
+        ThumbnailStorePrx store = gatewayAndCtx.getGateway().getThumbnailService(gatewayAndCtx.getCtx(group));
         PixelsData pixels = imageData.getDefaultPixels();
         store.setPixelsId(pixels.getId());
         byte[] array = store.getThumbnailByLongestSide(omero.rtypes.rint(RawUtilsCommon.THUMBNAIL_WIDTH));
@@ -458,10 +477,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     @Override
     public BufferedImage getOverviewImage(RawDataFile rdf) throws Exception {
         try {
+            long group = getRdfGroup(rdf);
             BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-            ImageData oriImage = browse.getImage(getGatewayAndCtx().getCtx(), rdf.getRawDataFileId());
+            ImageData oriImage = browse.getImage(getGatewayAndCtx().getCtx(group), rdf.getRawDataFileId());
             long fileSetId = oriImage.getFilesetId();
-            Collection<ImageData> images = browse.getImagesForDatasets(getGatewayAndCtx().getCtx(), Collections.singleton((long) rdf.getRawDataId()));
+            Collection<ImageData> images = browse.getImagesForDatasets(getGatewayAndCtx().getCtx(group), Collections.singleton((long) rdf.getRawDataId()));
 
             Iterator<ImageData> j = images.iterator();
             ImageData image;
@@ -491,7 +511,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public AbstractOrbitTree createOrbitTree() {
-        return new JOrbitTreeOmero(this, "Omero", Arrays.asList(new TreeNodeProject(this, null), new TreeNodeDataset(this, null)));
+        return new JOrbitTreeOmero(this, "Omero", Arrays.asList(new TreeNodeGroup(this, null), new TreeNodeProject(this, null), new TreeNodeDataset(this, null)));
     }
 
     @Override
@@ -567,17 +587,17 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     }
 
 
-    public List<RawData> loadProjects() {
+    public List<RawData> loadProjects(int group) {
         List<RawData> rdList = new ArrayList<>();
         if (omeroUser != null && omeroUser.length() > 0) {
             try {
                 BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-                Collection<ProjectData> projects = browse.getProjects(gatewayAndCtx.getCtx(), getOwnerId());
+                Collection<ProjectData> projects = browse.getProjects(gatewayAndCtx.getCtx(group), getOwnerId());
                 Iterator<ProjectData> i = projects.iterator();
                 ProjectData project;
                 while (i.hasNext()) {
                     project = i.next();
-                    rdList.add(createRawDataProject(project));
+                    rdList.add(createRawDataProject(project,group));
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -604,6 +624,39 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     }
 
 
+    public List<RawData> loadGroups() {
+        List<RawData> rdList = new ArrayList<>();
+        if (omeroUser != null && omeroUser.length() > 0) {
+            try {
+                BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
+                Set<GroupData> groups = browse.getAvailableGroups(gatewayAndCtx.getCtx(), gatewayAndCtx.getGateway().getLoggedInUser());
+                for (GroupData group: groups) {
+                    rdList.add(createRawDataGroup(group));
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            Collections.sort(rdList, new Comparator<RawData>() {
+                @Override
+                public int compare(RawData o1, RawData o2) {
+                    return o1.getBioLabJournal().compareTo(o2.getBioLabJournal());
+                }
+            });
+        }
+
+        return rdList;
+    }
+
+    public List<Long> getGroups() {
+        List<RawData> rdGroups = loadGroups();
+        List<Long> groupList = new ArrayList<>(rdGroups.size());
+        for (RawData rd: rdGroups) {
+            groupList.add((long) rd.getRawDataId());
+        }
+        return groupList;
+    }
+
     public List<RawData> loadRawDataDatasets(RawData projectRD) {
         List<RawData> rdList = new ArrayList<>();
         if (omeroUser != null && omeroUser.length() > 0) {
@@ -611,7 +664,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
                 Collection<ProjectData> projects;
                 if (projectRD != null && projectRD.getRawDataId() > 0) {
-                    projects = browse.getProjects(gatewayAndCtx.getCtx(), getOwnerId(), Collections.singleton((long) projectRD.getRawDataId()));
+                    long group = getProjectGroup((long)projectRD.getRawDataId());
+                    projects = browse.getProjects(gatewayAndCtx.getCtx(group), getOwnerId(), Collections.singleton((long) projectRD.getRawDataId()));
                     Iterator<ProjectData> i = projects.iterator();
                     ProjectData project;
                     Iterator<DatasetData> j;
@@ -622,31 +676,34 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                         j = datasets.iterator();
                         while (j.hasNext()) {
                             dataset = j.next();
-                            rdList.add(createRawDataDataset(dataset));
+                            rdList.add(createRawDataDataset(dataset,group));
                         }
                     }
                 } // datasets not assigned to projects (call all projects before calling this method without(=-1) projectID!)
                 else {
-                    HashSet<Long> loadedDatasetIDs = new HashSet<>();
-                    projects = browse.getProjects(gatewayAndCtx.getCtx(), getOwnerId()); // load all projects
-                    Iterator<ProjectData> i = projects.iterator();
-                    ProjectData project;
-                    Iterator<DatasetData> j;
-                    DatasetData dataset;
-                    while (i.hasNext()) {
-                        project = i.next();
-                        Set<DatasetData> datasets = project.getDatasets();
-                        j = datasets.iterator();
-                        while (j.hasNext()) {
-                            dataset = j.next();
-                            loadedDatasetIDs.add(dataset.getId());
+                    for (RawData groupRd: loadGroups()) {
+                        long group = groupRd.getRawDataId();
+                        HashSet<Long> loadedDatasetIDs = new HashSet<>();
+                        projects = browse.getProjects(gatewayAndCtx.getCtx(group), getOwnerId()); // load all projects
+                        Iterator<ProjectData> i = projects.iterator();
+                        ProjectData project;
+                        Iterator<DatasetData> j;
+                        DatasetData dataset;
+                        while (i.hasNext()) {
+                            project = i.next();
+                            Set<DatasetData> datasets = project.getDatasets();
+                            j = datasets.iterator();
+                            while (j.hasNext()) {
+                                dataset = j.next();
+                                loadedDatasetIDs.add(dataset.getId());
+                            }
                         }
-                    }
-                    // now load all datasets and keep the ones not in a project -> really bad...
-                    Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(), getOwnerId());
-                    for (DatasetData dataset2 : datasets) {
-                        if (!loadedDatasetIDs.contains(dataset2.getId())) {
-                            rdList.add(createRawDataDataset(dataset2));
+                        // now load all datasets and keep the ones not in a project -> really bad...
+                        Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(group), getOwnerId());
+                        for (DatasetData dataset2 : datasets) {
+                            if (!loadedDatasetIDs.contains(dataset2.getId())) {
+                                rdList.add(createRawDataDataset(dataset2,group));
+                            }
                         }
                     }
                 }
@@ -667,32 +724,35 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
 
     /**
-     * Loads a list of raw datasets. Filter is optional and can be used to filter the ersults (case-insensitive).
+     * Loads a list of raw datasets. Filter is optional and can be used to filter the results (case-insensitive).
      *
      * @param filter case-insensitive filter
      * @return list of raw datasets.
      */
     private List<RawData> loadRawDataDatasets(String filter) {
         List<RawData> rdList = new ArrayList<>();
-        try {
-            BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-            Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(), getOwnerId());
-            Iterator<DatasetData> i = datasets.iterator();
-            DatasetData dataset;
-            while (i.hasNext()) {
-                dataset = i.next();
-                if (filter == null || filter.length() == 0 || dataset.getName().toLowerCase().contains(filter.toLowerCase())) {
-                    rdList.add(createRawDataDataset(dataset));
+        for (RawData groupRd: loadGroups()) {
+            long group = groupRd.getRawDataId();
+            try {
+                BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
+                Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(group), getOwnerId());
+                Iterator<DatasetData> i = datasets.iterator();
+                DatasetData dataset;
+                while (i.hasNext()) {
+                    dataset = i.next();
+                    if (filter == null || filter.length() == 0 || dataset.getName().toLowerCase().contains(filter.toLowerCase())) {
+                        rdList.add(createRawDataDataset(dataset,group));
+                    }
                 }
+                Collections.sort(rdList, new Comparator<RawData>() {
+                    @Override
+                    public int compare(RawData o1, RawData o2) {
+                        return o1.getBioLabJournal().compareTo(o2.getBioLabJournal());
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-            Collections.sort(rdList, new Comparator<RawData>() {
-                @Override
-                public int compare(RawData o1, RawData o2) {
-                    return o1.getBioLabJournal().compareTo(o2.getBioLabJournal());
-                }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
         }
 
         return rdList;
@@ -713,10 +773,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
      * @return list of raw data files contained by the dataset
      */
     private List<RawDataFile> loadRdfList(final int rawDataId, final int limit, boolean listAllSeries) {
+        long group = getDatasetGroup((long)rawDataId);
         List<RawDataFile> rdfList = new ArrayList<>();
         try {
             BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-            Collection<ImageData> images = browse.getImagesForDatasets(getGatewayAndCtx().getCtx(), Collections.singleton((long) rawDataId));
+            Collection<ImageData> images = browse.getImagesForDatasets(getGatewayAndCtx().getCtx(group), Collections.singleton((long) rawDataId));
 
             Iterator<ImageData> j = images.iterator();
             ImageData image;
@@ -726,7 +787,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 //System.out.println(image.getName()+" / index: "+ image.getSeries());
                 if (image.getSeries() == 0 || listAllSeries) {
                     if (limit < 0 || cnt++ > limit) break;
-                    rdfList.add(createRawDataFile(image));
+                    rdfList.add(createRawDataFile(image,group));
                 }
             }
             Collections.sort(rdfList, new Comparator<RawDataFile>() {
@@ -770,6 +831,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             return ctx;
         }
 
+        public synchronized SecurityContext getCtx(long group) throws DSOutOfServiceException {
+            getGateway();
+            return new SecurityContext(group);
+        }
+
         public synchronized Gateway getGateway() throws DSOutOfServiceException {
             if (gateway == null) {
 
@@ -785,7 +851,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 SimpleLogger simpleLogger = new SimpleLogger();
                 gateway = new Gateway(simpleLogger);
                 ExperimenterData user = gateway.connect(cred);
-                ctx = new SecurityContext(user.getGroupId());
+
+                ctx = new SecurityContext(user.getGroupId());    // default group
             } else {
                 if (!gateway.isConnected()/*||!gateway.isAlive(ctx)*/) {
                     gateway.connect(cred);
@@ -808,13 +875,13 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     // bean creation
 
-    protected RawDataFile createRawDataFile(ImageData image) {
+    protected RawDataFile createRawDataFile(ImageData image, long group) {
         int rawDataId = 0; //loadRawDataId((int)image.getId());
 
         try {
             ParametersI param = new ParametersI();
             param.addIds(Collections.singleton(image.getId()));
-            List<IObject> list = gatewayAndCtx.getGateway().getQueryService(gatewayAndCtx.getCtx()).findAllByQuery("select l from DatasetImageLink as l left outer join fetch l.parent where l.child.id =:ids ", param);
+            List<IObject> list = gatewayAndCtx.getGateway().getQueryService(gatewayAndCtx.getCtx(group)).findAllByQuery("select l from DatasetImageLink as l left outer join fetch l.parent where l.child.id =:ids ", param);
 
             if (list != null && list.size() > 0) {
                 DatasetI dataset = (DatasetI) ((DatasetImageLinkI) list.get(0)).getParent();
@@ -824,10 +891,10 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             e.printStackTrace();
         }
 
-        return createRawDataFile(image, rawDataId);
+        return createRawDataFile(image, rawDataId, group);
     }
 
-    protected RawDataFile createRawDataFile(ImageData image, int rawDataId) {
+    protected RawDataFile createRawDataFile(ImageData image, int rawDataId, long group) {
         RawDataFile rdf = new RawDataFile();
         rdf.setRawDataId(rawDataId);
         rdf.setRawDataFileId((int) image.getId());
@@ -859,10 +926,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 break;
         }
         System.out.println("type: " + rdf.getFileType());
+        rdfGroupMap.put(image.getId(),group);
         return rdf;
     }
 
-    protected RawDataProject createRawDataProject(ProjectData project) {
+    protected RawDataProject createRawDataProject(ProjectData project, long group) {
         RawDataProject rd = new RawDataProject();
         rd.setRawDataId((int) project.getId());
         rd.setReferenceDate(project.getCreated() != null ? project.getCreated() : new Date());
@@ -870,10 +938,23 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         rd.setBioLabJournal(project.getName());
         rd.setDescription(project.getDescription());
         rd.setUserId(experimenterToString(project.getOwner()));
+        projectGroupMap.put(project.getId(),group);
         return rd;
     }
 
-    protected RawDataDataset createRawDataDataset(DatasetData dataset) {
+    protected RawDataGroup createRawDataGroup(GroupData group) {
+        RawDataGroup rd = new RawDataGroup();
+        rd.setRawDataId((int) group.getId());
+        rd.setReferenceDate(group.getCreated() != null ? group.getCreated() : new Date());
+        rd.setModifyDate(group.getUpdated());
+        rd.setBioLabJournal(group.getName());
+        rd.setDescription(group.getDescription());
+        rd.setUserId(experimenterToString(group.getOwner()));
+        return rd;
+    }
+
+
+    protected RawDataDataset createRawDataDataset(DatasetData dataset, long group) {
         RawDataDataset rd = new RawDataDataset();
         rd.setRawDataId((int) dataset.getId());
         rd.setReferenceDate(dataset.getCreated() != null ? dataset.getCreated() : new Date());
@@ -881,6 +962,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         rd.setBioLabJournal(dataset.getName());
         rd.setDescription(dataset.getDescription());
         rd.setUserId(experimenterToString(dataset.getOwner()));
+        datasetGroupMap.put(dataset.getId(),group);
         return rd;
     }
 
@@ -942,6 +1024,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             RawMetaFactoryFile rmff = new RawMetaFactoryFile(rdfId, new Date(), gatewayAndCtx.getGateway().getLoggedInUser().getUserName());
 
             RawDataFile rdf = LoadRawDataFile(rdfId);
+            long group = getRdfGroup(rdf);
             List<RawMeta> rmList = new ArrayList<>();
             rmList.add(rmff.createMetaStr("User", rdf.getUserId()));
             rmList.add(rmff.createMetaStr("Filename", rdf.getFileName()));
@@ -954,14 +1037,14 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
 
             MetadataFacility metaData = getGatewayAndCtx().getGateway().getFacility(MetadataFacility.class);
-            List<ChannelData> cd = metaData.getChannelData(gatewayAndCtx.getCtx(), rdfId);
+            List<ChannelData> cd = metaData.getChannelData(gatewayAndCtx.getCtx(group), rdfId);
             for (ChannelData channelData : cd) {
                 rmList.add(rmff.createMetaStr("Channel." + RawUtilsCommon.STR_META_CHANNEL + " " + channelData.getId(), channelData.getName() + " (" + channelData.getChannelLabeling() + ")"));
             }
 
 
             // annotations
-            IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx());
+            IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx(group));
             List<String> nsToInclude = new ArrayList<String>();
             //nsToInclude.add(NAME_SPACE_TO_SET);
             List<String> nsToExclude = new ArrayList<String>();
@@ -1006,7 +1089,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
             // image dims and resolution
             BrowseFacility browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
-            PixelsData imageData = browse.getImage(gatewayAndCtx.getCtx(), rdfId).getDefaultPixels();
+            PixelsData imageData = browse.getImage(gatewayAndCtx.getCtx(group), rdfId).getDefaultPixels();
             rmList.add(rmff.createMetaInt(RawUtilsCommon.STR_META_IMAGE_IMAGEWIDTH, imageData.getSizeX()));
             rmList.add(rmff.createMetaInt(RawUtilsCommon.STR_META_IMAGE_IMAGEHEIGHT, imageData.getSizeY()));
             Length mupp = imageData.getPixelSizeX(UnitsLength.MICROMETER);
@@ -1097,6 +1180,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public int InsertRawAnnotation(RawAnnotation rawAnnotation) throws Exception {
         //ROIData roi = new ROIData();
         //PointData pd = new PointData();
+        long group = getImageGroup(rawAnnotation.getRawDataFileId());
 
         // fist version: save as attached file
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
@@ -1118,7 +1202,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         originalFile.setHasher(checksumAlgorithm);
         originalFile.setMimetype(omero.rtypes.rstring(fileMimeType));
         //Now we save the originalFile object
-        originalFile = (OriginalFile) dm.saveAndReturnObject(gatewayAndCtx.getCtx(), originalFile);
+        originalFile = (OriginalFile) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), originalFile);
 
         // upload the byte array
         originalFile = storeOriginalFile(rawAnnotation, originalFile);
@@ -1132,17 +1216,17 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         fa.setNs(omero.rtypes.rstring(namespace));
 
         //save the file annotation.
-        fa = (FileAnnotation) dm.saveAndReturnObject(gatewayAndCtx.getCtx(), fa);
+        fa = (FileAnnotation) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), fa);
 
         //now link the image and the annotation
         if (rawAnnotation.getRawDataFileId() >= 0) {    // otherwise it's a non file specific annotation
             BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-            ImageData image = browse.getImage(gatewayAndCtx.getCtx(), rawAnnotation.getRawDataFileId());
+            ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), rawAnnotation.getRawDataFileId());
             ImageAnnotationLink link = new ImageAnnotationLinkI();
             link.setChild(fa);
             link.setParent(image.asImage());
             //save the link back to the server.
-            link = (ImageAnnotationLink) dm.saveAndReturnObject(gatewayAndCtx.getCtx(), link);
+            link = (ImageAnnotationLink) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), link);
             // to attach to a Dataset use DatasetAnnotationLink;
         }
 
@@ -1155,6 +1239,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public boolean UpdateRawAnnotation(RawAnnotation rawAnnotation) throws Exception {
+        long group = getImageGroup(rawAnnotation.getRawDataFileId());
+
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
         FileAnnotation annotation = (FileAnnotation) loadAnnotation(rawAnnotation.getRawAnnotationId());
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
@@ -1175,7 +1261,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         originalFile.setHasher(checksumAlgorithm);
         originalFile.setMimetype(omero.rtypes.rstring(fileMimeType));
         //Now we update the originalFile object
-        originalFile = (OriginalFile) dm.updateObject(gatewayAndCtx.getCtx(), originalFile, getParameterWrite());
+        originalFile = (OriginalFile) dm.updateObject(gatewayAndCtx.getCtx(group), originalFile, getParameterWrite());
         if (log.isTraceEnabled())
             log.trace("original file updated: " + originalFile);
 
@@ -1191,14 +1277,16 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         fa.setNs(omero.rtypes.rstring(namespace)); // The name space you have set to identify the file annotation.
 
         //save the file annotation.
-        fa = (FileAnnotation) dm.updateObject(gatewayAndCtx.getCtx(), fa, getParameterWrite());  // id should be the same afterwards
+        fa = (FileAnnotation) dm.updateObject(gatewayAndCtx.getCtx(group), fa, getParameterWrite());  // id should be the same afterwards
         //rawAnnotation.setRawAnnotationId((int) fa.getId().getValue());
         log.debug("rawAnnotation updated: " + rawAnnotation);
         return (int) fa.getId().getValue() == rawAnnotation.getRawAnnotationId();
     }
 
     private OriginalFile storeOriginalFile(RawAnnotation rawAnnotation, OriginalFile originalFile) throws DSOutOfServiceException, ServerError, IOException {
-        RawFileStorePrx rawFileStore = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx());
+        long group = getImageGroup(rawAnnotation.getRawDataFileId());
+
+        RawFileStorePrx rawFileStore = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
         rawFileStore.setFileId(originalFile.getId().getValue());
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -1228,25 +1316,37 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
 
     private Annotation loadAnnotation(int rawAnnotationId) throws Exception {
-        IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx());
+        long group = getAnnotationGroup(rawAnnotationId);
+        Annotation annotation = null;
+        IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx(group));
         List<Annotation> annotations = proxy.loadAnnotation(Collections.singletonList((long) rawAnnotationId));
         if (annotations == null || annotations.size() == 0) {
             throw new Exception("annotation with id " + rawAnnotationId + " not found");
+        }  else {
+            if (annotations.size() > 1) {
+                log.warn("more than one annotations found for id " + rawAnnotationId + " but only the first will be used");
+            }
+            annotation = annotations.get(0);
         }
-        if (annotations.size() > 1) {
-            log.warn("more than one annotations found for id " + rawAnnotationId + " but only the first will be used");
-        }
-        Annotation annotation = annotations.get(0);
         return annotation;
     }
 
     private List<RawAnnotation> loadAnnotations(Collection<Annotation> annotations) throws Exception {
         FileAnnotationData fa;
-        RawFileStorePrx store = null;
-        store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx());
-
         List<RawAnnotation> rawAnnotations = new ArrayList<>(annotations.size());
+        RawFileStorePrx store = null;
+        long lastGroup = -2;
         for (Annotation annotation : annotations) {
+            long group = getAnnotationGroup(annotation.getId().getValue());
+            if (group!=lastGroup) {
+                if (store!=null) {
+                    try {
+                        store.close();
+                    } catch (Exception e) {}
+                }
+                store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
+                lastGroup = group;
+            }
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             OriginalFile of;
             if (annotation instanceof FileAnnotation) {
@@ -1277,13 +1377,20 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 rawAnnotations.add(ra);
             } catch (ClassNotFoundException e) {
                 log.warn("class for deserialization not found: " + e.getMessage());
-            } finally {
+            } catch (InvalidClassException ice) {
+                log.warn("invalid class exception");
+            }
+            finally {
                 ois.close();
                 bis.close();
             }
 
         }
-        store.close();
+        if (store!=null) {
+            try {
+                store.close();
+            } catch (Exception e) {}
+        }
 
         return rawAnnotations;
     }
@@ -1301,7 +1408,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public List<RawAnnotation> LoadRawAnnotationsByRawDataFile(int rdfID) throws Exception {
-        IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx());
+        long group = getImageGroup(rdfID);
+        IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx(group));
         List<String> nsToInclude = new ArrayList<String>();
         nsToInclude.add(ANNOTATION_NAMESPACE);
         List<String> nsToExclude = new ArrayList<String>();
@@ -1335,16 +1443,20 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public List<RawAnnotation> LoadRawAnnotationsByType(int rawAnnotationType) throws Exception {
         String namespace = ANNOTATION_NAMESPACE;
         if (rawAnnotationType == RawAnnotation.ANNOTATION_TYPE_MODEL) namespace = ANNOTATION_NOFILE_NAMESPACE;
-        IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx());
-        List<String> nsToInclude = new ArrayList<String>();
-        nsToInclude.add(namespace);
-        List<String> nsToExclude = new ArrayList<String>();
-        List<Annotation> annotations = proxy.loadSpecifiedAnnotations(FileAnnotation.class.getName(), nsToInclude, nsToExclude, getParameterRead());   // use parameter param to restrict annotations to user
+        List<Annotation> annotations = new ArrayList<>();
+        for (long group: getGroups()) {
+            IMetadataPrx proxy = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx(group));
+            List<String> nsToInclude = new ArrayList<String>();
+            nsToInclude.add(namespace);
+            List<String> nsToExclude = new ArrayList<String>();
+            annotations.addAll(proxy.loadSpecifiedAnnotations(FileAnnotation.class.getName(), nsToInclude, nsToExclude, getParameterRead()));   // use parameter param to restrict annotations to user
+            if (log.isTraceEnabled() && annotations != null)
+                log.trace("group "+group+ " #annotations: " + annotations.size());
+        }
+
         if (annotations == null || annotations.size() == 0) {
             return new ArrayList<>();
         }
-        if (log.isTraceEnabled() && annotations != null)
-            log.trace("#annotations: " + annotations.size());
 
         // TODO: better query correct types
         List<RawAnnotation> rawAnnotations = loadAnnotations(annotations);
@@ -1360,9 +1472,10 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public boolean DeleteRawAnnotation(int rawAnnotationId) throws Exception {
+        long group = getAnnotationGroup(rawAnnotationId);
         Annotation annotation = loadAnnotation(rawAnnotationId);
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
-        Delete2Response response = (Delete2Response) dm.deleteObject(gatewayAndCtx.getCtx(), annotation);
+        Delete2Response response = (Delete2Response) dm.deleteObject(gatewayAndCtx.getCtx(group), annotation);
         return (response.deletedObjects.get("ome.model.annotations.FileAnnotation").size() > 0);  // deleted one fileannotaiton (no id check here)
     }
 
@@ -1371,6 +1484,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public int InsertRawMeta(RawMeta rm) throws Exception {
+        long group = getImageGroup(rm.getRawDataFileId());
+
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
         MapAnnotationI anno = new MapAnnotationI();
         anno.setNs(omero.rtypes.rstring(ORBIT_METADATA_NAMESPACE));
@@ -1378,17 +1493,17 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         List<NamedValue> kvList = new ArrayList<>(1);
         kvList.add(new NamedValue(rm.getName(), rm.getValue()));
         anno.setMapValue(kvList);
-        anno = (MapAnnotationI) dm.saveAndReturnObject(gatewayAndCtx.getCtx(), anno);
+        anno = (MapAnnotationI) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), anno);
         rm.setRawMetaId((int) anno.getId().getValue());
         log.debug("inserted meta data: " + rm);
 
         // link to rawDataFile
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
-        ImageData image = browse.getImage(gatewayAndCtx.getCtx(), rm.getRawDataFileId());
+        ImageData image = browse.getImage(gatewayAndCtx.getCtx(group), rm.getRawDataFileId());
         ImageAnnotationLink link = new ImageAnnotationLinkI();
         link.setChild(anno);
         link.setParent(image.asImage());
-        link = (ImageAnnotationLink) dm.saveAndReturnObject(gatewayAndCtx.getCtx(), link);
+        link = (ImageAnnotationLink) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), link);
         clearMetaRDFHash();
         return rm.getRawMetaId();
     }
@@ -1397,6 +1512,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public boolean UpdateRawMeta(RawMeta rm) throws Exception {
         if (rm.getRawMetaId() <= 0)
             throw new IllegalArgumentException("RawMeta is not persistent, cannot update. RawMeta: " + rm);
+        long group = getImageGroup(rm.getRawDataFileId());
         Annotation annotation = loadAnnotation(rm.getRawMetaId());
         if (annotation instanceof MapAnnotationI) {
             DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
@@ -1406,7 +1522,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             List<NamedValue> kvList = new ArrayList<>(1);
             kvList.add(new NamedValue(rm.getName(), rm.getValue()));
             anno.setMapValue(kvList);
-            anno = (MapAnnotationI) dm.updateObject(gatewayAndCtx.getCtx(), anno, getParameterWrite());
+            anno = (MapAnnotationI) dm.updateObject(gatewayAndCtx.getCtx(group), anno, getParameterWrite());
             clearMetaRDFHash();
             return ((int) anno.getId().getValue()) == rm.getRawMetaId();
         } else {
@@ -1419,11 +1535,13 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public boolean DeleteRawMeta(int rawMetaId) throws Exception {
         if (rawMetaId <= 0)
             throw new IllegalArgumentException("RawMeta is not persistent, cannot delete. RawMetaId: " + rawMetaId);
+        long group = getAnnotationGroup(rawMetaId);
         Annotation annotation = loadAnnotation(rawMetaId);
         if (annotation instanceof MapAnnotationI) {
+
             DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
             MapAnnotationI anno = (MapAnnotationI) annotation;
-            dm.deleteObject(gatewayAndCtx.getCtx(), anno);
+            dm.delete(gatewayAndCtx.getCtx(group), anno);
             log.debug("delete rawMeta annotation: " + anno);
         } else {
             throw new IllegalArgumentException("annotation is not a MapAnnotationI, but is " + annotation.getClass().getName());
@@ -1456,18 +1574,222 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         this.onlyOwnerObjects = onlyOwnerObjects;
     }
 
+    public long getProjectGroup(long projectId) {
+        long group = -1;
+        if (projectGroupMap.containsKey(projectId)) {
+            group = projectGroupMap.get(projectId);
+        } else {
+            BrowseFacility browse = null;
+            try {
+                browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (browse!=null) {
+                for (long g : getGroups()) {
+                    ProjectData project = null;
+                    try {
+                        Collection<ProjectData> projects = browse.getProjects(gatewayAndCtx.getCtx(g), Collections.singletonList(projectId));
+                        if (projects != null && projects.size() > 0) {
+                            project = projects.iterator().next();
+                        }
+                    } catch (Exception e) {
+                        // do nothing here, just testing
+                    }
+                    if (project != null) {  // correct group
+                        group = g;
+                        return group;
+                    }
+                }
+            }
+        }
+        return group;
+    }
+
+    public long getDatasetGroup(long datasetId) {
+        long group = -1;
+        if (datasetGroupMap.containsKey(datasetId)) {
+            group = datasetGroupMap.get(datasetId);
+        } else {
+            BrowseFacility browse = null;
+            try {
+                browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (browse!=null) {
+                for (long g : getGroups()) {
+                    DatasetData dataset = null;
+                    try {
+                        Collection<DatasetData> datasets = browse.getDatasets(gatewayAndCtx.getCtx(g), Collections.singletonList(datasetId));
+                        if (datasets != null && datasets.size() > 0) {
+                            dataset = datasets.iterator().next();
+                        }
+                    } catch (Exception e) {
+                        // do nothing here, just testing
+                    }
+                    if (dataset != null) {  // correct group
+                        group = g;
+                        datasetGroupMap.put(datasetId,group);
+                        return group;
+                    }
+                }
+            }
+        }
+        return group;
+    }
+
+    public long getRdfGroup(RawDataFile rdf) {
+        long group = -1;
+        if (rdfGroupMap.containsKey((long)rdf.getRawDataFileId())) {
+            group = rdfGroupMap.get((long)rdf.getRawDataFileId());
+        }
+        else if (datasetGroupMap.containsKey((long)rdf.getRawDataId())) {
+            group = getDatasetGroup((long) rdf.getRawDataId());
+        } else {
+            group = getImageGroup((long)rdf.getRawDataFileId());
+        }
+        return group;
+    }
+
+    public static long getImageGroupCached(long imageId) {
+        long group = -1;
+        if (rdfGroupMap.containsKey(imageId)) {
+            group = rdfGroupMap.get(imageId);
+        }
+        return group;
+    }
+
+    public long getImageGroup(long imageId) {
+        long group = -1;
+        if (rdfGroupMap.containsKey(imageId)) {
+            group = rdfGroupMap.get(imageId);
+        } else {
+            BrowseFacility browse = null;
+            try {
+                browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if (browse!=null) {
+                for (long g : getGroups()) {
+                    ImageData image = null;
+                    try {
+                        browse = gatewayAndCtx.getGateway().getFacility(BrowseFacility.class);
+                        image = browse.getImage(gatewayAndCtx.getCtx(g), imageId);
+                    } catch (Exception e) {
+                        // do nothing here, just testing
+                    }
+                    if (image != null) {  // correct group
+                        group = g;
+                        rdfGroupMap.put(imageId,group);
+                        return group;
+                    }
+                }
+            }
+        }
+        return group;
+    }
+
+
+    public long getAnnotationGroup(long annotationId) {
+        long group = -1;
+        if (metaGroupMap.containsKey(annotationId)) {
+            group = metaGroupMap.get(annotationId);
+        } else {
+                for (long g : getGroups()) {
+                    Annotation annotation = null;
+                    try {
+                        IMetadataPrx proxy  = gatewayAndCtx.getGateway().getMetadataService(gatewayAndCtx.getCtx(g));
+                        List<Annotation> annotations = proxy.loadAnnotation(Collections.singletonList(annotationId));
+                        if (annotations!=null && annotations.size()>0) {
+                            annotation = annotations.get(0);
+                        }
+                    } catch (Exception e) {
+                        // do nothing here, just testing
+                    }
+                    if (annotation != null) {  // correct group
+                        group = g;
+                        metaGroupMap.put(annotationId,group);
+                        return group;
+                    }
+                }
+            }
+        return group;
+    }
+
+    /**
+     * Only for debugging
+     * @param user
+     * @param pass
+     */
+    protected void showOrbitTree(String user, String pass) {
+        boolean auth = authenticateUser(user, pass);
+        //boolean auth = ip.authenticateUser("root", "omero");
+        System.out.println("auth: "+auth);
+        AbstractOrbitTree tree = createOrbitTree();
+        tree.refresh();
+        JFrame frame = new JFrame("Omero");
+        frame.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+        frame.add(tree);
+        frame.setBounds(0,0,500,700);
+        frame.setVisible(true);
+        RawUtilsCommon.centerComponent(frame);
+    }
+
     public static void main(String[] args) throws Exception {
         // just a demo
+        /*
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("root", "omero");
-        int rdfId = 1;
+        boolean auth = ip.authenticateUser("g2user", "omero");
+        System.out.println("auth: "+auth);
+        int rdfId = 160;
         RawDataFile rdf = ip.LoadRawDataFile(rdfId);
-        System.out.println(rdf.getRawDataId());
+        System.out.println(rdf.toStringDetail());
 
         BufferedImage img = ip.getThumbnail(rdf);
         System.out.println("overview image: " + img);
 
         ip.close();
+        */
+
+       // ImageProviderOmero ip = new ImageProviderOmero();
+       // ip.showOrbitTree("g2user","omero");
+
+        ImageProviderOmero ip = new ImageProviderOmero();
+        ip.authenticateUser("g2user","omero");
+        long group = ip.getImageGroup(160);
+        System.out.println("group: "+group);
+
+
+         /*
+        long imageId = 160;
+        SimpleLogger simpleLogger = new SimpleLogger();
+        Gateway gateway = new Gateway(simpleLogger);
+
+        LoginCredentials cred = new LoginCredentials();
+        cred.getServer().setHostname("localhost");
+        cred.getServer().setPort(4064);
+        cred.setApplicationName("Orbit");
+        cred.getUser().setUsername("g2user");
+        cred.getUser().setPassword("omero");
+        cred.setGroupID(-1);    // 84, 34
+        ExperimenterData user = gateway.connect(cred);
+        //SecurityContext ctx = new SecurityContext(user.getGroupId());
+        SecurityContext ctx = new SecurityContext(34);
+
+        try {
+            BrowseFacility browse = gateway.getFacility(BrowseFacility.class);
+            ImageData image = browse.getImage(ctx, imageId);
+            System.out.println(image);
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                gateway.disconnect();
+            } catch (Exception e1) {};
+        }
+        */
 
     }
 }

@@ -26,30 +26,24 @@ import com.actelion.research.orbit.utils.Logger;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TreeNodeProject extends AbstractOrbitTreeNode {
+public class TreeNodeGroup extends AbstractOrbitTreeNode {
 
-    private static Logger logger = Logger.getLogger(TreeNodeProject.class);
-    private RawData project = null;
+    private static Logger logger = Logger.getLogger(TreeNodeGroup.class);
+    private RawData group = null;
     private ImageProviderOmero imageProviderOmero;
 
 
-    public TreeNodeProject(ImageProviderOmero imageProviderOmero, RawData project) {
+    public TreeNodeGroup(ImageProviderOmero imageProviderOmero, RawData group) {
         this.imageProviderOmero = imageProviderOmero;
-        this.project = project;
+        this.group = group;
     }
 
     @Override
-    public synchronized List<TreeNodeProject> getNodes(AbstractOrbitTreeNode parent) {
-        List<TreeNodeProject> nodeList = new ArrayList<>();
-        int group = -1;
-        if (parent!=null && parent instanceof TreeNodeGroup) {
-            TreeNodeGroup groupNode = (TreeNodeGroup) parent;
-            RawData rdGroup = (RawData) groupNode.getIdentifier();
-            group = rdGroup.getRawDataId();
-        }
-        List<RawData> rdList = loadProjects(group);
+    public synchronized List<TreeNodeGroup> getNodes(AbstractOrbitTreeNode parent) {
+        List<TreeNodeGroup> nodeList = new ArrayList<>();
+        List<RawData> rdList = loadGroups();
         for (RawData rd : rdList) {
-            nodeList.add(new TreeNodeProject(imageProviderOmero, rd));
+            nodeList.add(new TreeNodeGroup(imageProviderOmero, rd));
         }
         return nodeList;
     }
@@ -57,18 +51,18 @@ public class TreeNodeProject extends AbstractOrbitTreeNode {
 
     @Override
     public boolean isChildOf(Object parent) {
-        return parent instanceof TreeNodeGroup;
+        return true;
     }
 
 
     @Override
     public Object getIdentifier() {
-        return project;
+        return group;
     }
 
     @Override
     public String toString() {
-        return project != null ? project.getBioLabJournal() : "";
+        return group != null ? group.getBioLabJournal() : "";
     }
 
     @Override
@@ -76,20 +70,20 @@ public class TreeNodeProject extends AbstractOrbitTreeNode {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TreeNodeProject that = (TreeNodeProject) o;
+        TreeNodeGroup that = (TreeNodeGroup) o;
 
-        return project != null ? project.equals(that.project) : that.project == null;
+        return group != null ? group.equals(that.group) : that.group == null;
 
     }
 
     @Override
     public int hashCode() {
-        return project != null ? project.hashCode() : 0;
+        return group != null ? group.hashCode() : 0;
     }
 
 
-    private List<RawData> loadProjects(int group) {
-        return imageProviderOmero.loadProjects(group);
+    private List<RawData> loadGroups() {
+        return imageProviderOmero.loadGroups();
     }
 
 

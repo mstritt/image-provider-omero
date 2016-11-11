@@ -51,7 +51,7 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
     protected String filter = null;
     private static String RAWDATAFILES_SELECTED = "raw_data_files_selected";
     private ImageProviderOmero imageProviderOmero;
-    private final JCheckBox onlyMyEntitiesCB = new JCheckBox("show only my assets", true);
+    private final JCheckBox onlyMyEntitiesCB = new JCheckBox("show only my assets", false);
 
 
     public JOrbitTreeOmero(final ImageProviderOmero imageProviderOmero, String rootName, List<AbstractOrbitTreeNode> treeNodeTypes) {
