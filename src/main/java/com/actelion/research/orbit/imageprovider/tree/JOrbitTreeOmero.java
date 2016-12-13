@@ -32,6 +32,7 @@ import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
@@ -52,6 +53,7 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
     private static String RAWDATAFILES_SELECTED = "raw_data_files_selected";
     private ImageProviderOmero imageProviderOmero;
     private final JCheckBox onlyMyEntitiesCB = new JCheckBox("show only my assets", false);
+    private final JCheckBox onlyFirstSeriesCB = new JCheckBox("only first series", false);
 
 
     public JOrbitTreeOmero(final ImageProviderOmero imageProviderOmero, String rootName, List<AbstractOrbitTreeNode> treeNodeTypes) {
@@ -66,6 +68,16 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
             public void actionPerformed(ActionEvent e) {
                 if (imageProviderOmero != null) {
                     imageProviderOmero.setOnlyOwnerObjects(onlyMyEntitiesCB.isSelected());
+                    refresh();
+                }
+            }
+        });
+
+        onlyFirstSeriesCB.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (imageProviderOmero != null) {
+                    imageProviderOmero.setListAllSeries(!onlyFirstSeriesCB.isSelected());
                     refresh();
                 }
             }
@@ -281,9 +293,10 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
 
     @Override
     public JComponent createTreeOptionPane() {
-        //JPanel panel = new JPanel();
-        //panel.add(onlyMyEntitiesCB);
-        return onlyMyEntitiesCB;
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT,5,0));
+        panel.add(onlyMyEntitiesCB);
+        panel.add(onlyFirstSeriesCB);
+        return panel;
     }
 
     public static class SortableTreeNode extends DefaultMutableTreeNode {

@@ -97,7 +97,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private int webport = 8080;
     private transient GatewayAndCtx gatewayAndCtx = new GatewayAndCtx();
     protected int searchLimit = 1000;
-    protected boolean listAllSeries = false;
+    protected boolean listAllSeries = true;
     protected final Map<Integer, Map<String, RawMeta>> metaHashRDF = new ConcurrentHashMap<>();
     protected final Map<Integer, Map<String, RawMeta>> metaHashRawData = new ConcurrentHashMap<>();
     private boolean onlyOwnerObjects = false; // show/edit only objects owned by current user (otherwise show/edit all with read/write access)
@@ -1574,6 +1574,14 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         this.onlyOwnerObjects = onlyOwnerObjects;
     }
 
+    public boolean isListAllSeries() {
+        return listAllSeries;
+    }
+
+    public void setListAllSeries(boolean listAllSeries) {
+        this.listAllSeries = listAllSeries;
+    }
+
     public long getProjectGroup(long projectId) {
         long group = -1;
         if (projectGroupMap.containsKey(projectId)) {
@@ -1760,7 +1768,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         ip.authenticateUser("g2user","omero");
         long group = ip.getImageGroup(160);
         System.out.println("group: "+group);
-
+        ip.close();
 
          /*
         long imageId = 160;
