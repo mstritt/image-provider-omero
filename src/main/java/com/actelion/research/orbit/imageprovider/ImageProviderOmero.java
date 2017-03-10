@@ -34,10 +34,7 @@ import com.actelion.research.orbit.utils.RawMetaFactoryData;
 import com.actelion.research.orbit.utils.RawMetaFactoryFile;
 import com.actelion.research.orbit.utils.RawUtilsCommon;
 import omero.ServerError;
-import omero.api.IAdminPrx;
-import omero.api.IMetadataPrx;
-import omero.api.RawFileStorePrx;
-import omero.api.ThumbnailStorePrx;
+import omero.api.*;
 import omero.cmd.Delete2Response;
 import omero.gateway.Gateway;
 import omero.gateway.LoginCredentials;
@@ -505,7 +502,12 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     @Override
     public IOrbitImage createOrbitImage(RawDataFile rdf, int level) throws Exception {
-        return new OmeroImage(rdf.getRawDataFileId(), level, getGatewayAndCtx());
+        long imageId = rdf.getRawDataFileId();
+        long group = getImageGroupCached(imageId);
+
+        boolean useCache = true;
+        OrbitImageBioformatsOmero oi = new OrbitImageBioformatsOmero("omeroorbit:iid="+rdf.getRawDataFileId(),level,0, useCache, gatewayAndCtx,imageId, group);
+        return oi;
     }
 
 
@@ -1764,10 +1766,15 @@ public class ImageProviderOmero extends ImageProviderAbstract {
        // ImageProviderOmero ip = new ImageProviderOmero();
        // ip.showOrbitTree("g2user","omero");
 
+        int id = 219; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("g2user","omero");
-        long group = ip.getImageGroup(160);
-        System.out.println("group: "+group);
+        ip.authenticateUser("root","omero");
+        long group = ip.getImageGroup(id);
+        RawDataFile rdf = ip.LoadRawDataFile(id);
+        IOrbitImage image = ip.createOrbitImage(rdf,0);
+        System.out.println(image.getFilename());
+        System.out.println("isFluo: "+((OmeroImage)image).isMultiChannel());
+
         ip.close();
 
          /*

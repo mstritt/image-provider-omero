@@ -19,15 +19,19 @@
 
 package com.actelion.research.orbit.imageprovider;
 
-import com.actelion.research.orbit.dal.IOrbitImage;
+import com.actelion.research.orbit.dal.IOrbitImageMultiChannel;
 import com.actelion.research.orbit.exceptions.OrbitImageServletException;
+import loci.formats.gui.AWTImageTools;
 import omero.ServerError;
+import omero.api.IPixelsPrx;
 import omero.api.RawPixelsStorePrx;
 import omero.api.RenderingEnginePrx;
 import omero.gateway.exception.DSAccessException;
 import omero.gateway.exception.DSOutOfServiceException;
 import omero.gateway.facility.BrowseFacility;
 import omero.gateway.model.ImageData;
+import omero.gateway.model.PixelsData;
+import omero.model.Channel;
 import omero.model.Pixels;
 import omero.romio.PlaneDef;
 import omero.romio.RegionDef;
@@ -39,12 +43,14 @@ import javax.media.jai.PlanarImage;
 import java.awt.image.*;
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
  * Implements an IOrbitImage using the Omero backend. Basically it reads image data from Omero tile by tile.
  */
-public class OmeroImage implements IOrbitImage, Closeable {
+@Deprecated
+public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
 
     private static final Logger log = LoggerFactory.getLogger(OmeroImage.class);
     private long imageId;
@@ -52,12 +58,17 @@ public class OmeroImage implements IOrbitImage, Closeable {
     private String imageName = "";
     private int width;
     private int height;
+    private int sizeC;
+    private String[] channelNames;
+    private float[] channelContributions;
+    private float[] hues;
     private int tileWidth;
     private int tileHeight;
     private ColorModel colorModel;
     private SampleModel sampleModel;
     private int numLevels;
     private int level;
+    private boolean multiChannel = false;
     //ThreadLocal<RawPixelsStorePrx> stores = new ThreadLocal<>();
     private transient ImageProviderOmero.GatewayAndCtx gatewayAndCtx;
     long pixelsId;
@@ -76,8 +87,25 @@ public class OmeroImage implements IOrbitImage, Closeable {
 
         this.imageName = image.getName();
         System.out.println("image name: " + imageName);
-        Pixels pixels = image.getDefaultPixels().asPixels();
+        IPixelsPrx pixelService = gatewayAndCtx.getGateway().getPixelsService(gatewayAndCtx.getCtx(group));
+        Pixels pixels = pixelService.retrievePixDescription(imageId);
+        PixelsData pixelsData = image.getDefaultPixels();
+//        Pixels pixels = pixelsData.asPixels();
         long pixelsId = pixels.getId().getValue();      // = imageId
+        this.sizeC = pixels.getSizeC().getValue();
+
+        log.debug("num channels: "+this.sizeC);
+        channelNames = new String[this.sizeC];
+        channelContributions = new float[this.sizeC];
+        hues = new float[this.sizeC];
+        List<Channel> channelList = pixels.copyChannels();
+        for (int c=0; c<sizeC; c++) {
+            String channelName = channelList.get(c).getLogicalChannel().getName().getValue();
+            channelNames[c] = channelName;
+            channelContributions[c] = 1f;
+            log.debug("channel "+c+": "+channelName);
+        }
+        this.multiChannel = !isRGB();
 
         RawPixelsStorePrx store = null;
         try {
@@ -129,6 +157,18 @@ public class OmeroImage implements IOrbitImage, Closeable {
         }
     }
 
+    /**
+     * Checks if sizeC==3 and channels 'red','green','blue' exist. To be replaced by a Omero property.
+     */
+    private boolean isRGB() {
+        return (sizeC==3) && (channelNames!=null) && (channelNames.length==3) &&
+                (
+                    (channelNames[0].equalsIgnoreCase("red")||channelNames[1].equalsIgnoreCase("red")||channelNames[2].equalsIgnoreCase("red")) &&
+                    (channelNames[0].equalsIgnoreCase("green")||channelNames[1].equalsIgnoreCase("green")||channelNames[2].equalsIgnoreCase("green")) &&
+                    (channelNames[0].equalsIgnoreCase("blue")||channelNames[1].equalsIgnoreCase("blue")||channelNames[2].equalsIgnoreCase("blue"))
+                );
+    }
+
 
     public void close() {
         /*
@@ -170,7 +210,7 @@ public class OmeroImage implements IOrbitImage, Closeable {
      * @param tileY
      * @return Raster of the tile
      */
-    public Raster getTileData(int tileX, int tileY) {
+    public Raster getTileDataRendered(int tileX, int tileY) {
         RenderingEnginePrx proxy = null;
         try {
             proxy = gatewayAndCtx.getGateway().getRenderingService(gatewayAndCtx.getCtx(group), pixelsId);
@@ -189,6 +229,10 @@ public class OmeroImage implements IOrbitImage, Closeable {
             final int levelHeight = proxy.getResolutionDescriptions()[level].sizeY;
 
             proxy.setResolutionLevel((proxy.getResolutionLevels() - 1) - level);
+
+            // proxy.setActive() to set channels
+            // proxy.setModel() to define channel -> color model
+
             final int tilePosX = tileWidth * tileX;
             final int tilePosY = tileHeight * tileY;
             int tw = Math.min(tileWidth, levelWidth - tilePosX);
@@ -200,6 +244,7 @@ public class OmeroImage implements IOrbitImage, Closeable {
             pDef.slice = omero.romio.XY.value;
             pDef.region = new RegionDef(tilePosX, tilePosY, tw, th);
 
+           // IFormatReader reader = new OmeroReader()
 
             //		int[] uncompressed = proxy.renderAsPackedInt(pDef);
             byte[] compressed = proxy.renderCompressed(pDef);
@@ -226,7 +271,6 @@ public class OmeroImage implements IOrbitImage, Closeable {
         }
     }
 
-
     /**
      * Load original tile data -> uncompressed from server side ???
      *
@@ -234,7 +278,19 @@ public class OmeroImage implements IOrbitImage, Closeable {
      * @param tileY
      * @return Raster of the tile
      */
-    public Raster getTileData2(int tileX, int tileY) {
+    public Raster getTileData(int tileX, int tileY) {
+          return getTileData(tileX,tileY,null);
+    }
+
+
+    /**
+     * Load original tile data merge to RGB with channelContributions -> uncompressed from server side ???
+     *
+     * @param tileX
+     * @param tileY
+     * @return Raster of the tile
+     */
+    public Raster getTileData(int tileX, int tileY, float[] channelContributions) {
         RawPixelsStorePrx store = null;
         try {
             //RawPixelsStorePrx store = stores.get();
@@ -252,10 +308,23 @@ public class OmeroImage implements IOrbitImage, Closeable {
 
             final int t = 0;
             final int tileZ = 0;
-            byte[] r = store.getTile(tileZ, 0, t, tilePosX, tilePosY, tw, th);
-            byte[] g = store.getTile(tileZ, 1, t, tilePosX, tilePosY, tw, th);
-            byte[] b = store.getTile(tileZ, 2, t, tilePosX, tilePosY, tw, th);
-            BufferedImage image = createImage(tw, th, r, g, b);
+
+            // getTile(int z, int c, int t, int x, int y, int w, int h);
+            BufferedImage image = null;
+            if (isMultiChannel()) {
+                byte[][] bytesPerChannel = new byte[sizeC][];
+                for (int c=0; c<sizeC; c++) {
+                    bytesPerChannel[c] = store.getTile(tileZ, c, t, tilePosX, tilePosY, tw, th);
+                    //OmeroReader
+                    boolean interleaved = false;
+                    image = createImageMultiChannel(tw,th,bytesPerChannel, interleaved, store.isSigned());
+                }
+            } else {
+                byte[] r = store.getTile(tileZ, 0, t, tilePosX, tilePosY, tw, th);
+                byte[] g = store.getTile(tileZ, 1, t, tilePosX, tilePosY, tw, th);
+                byte[] b = store.getTile(tileZ, 2, t, tilePosX, tilePosY, tw, th);
+                image = createImage(tw, th, r, g, b);
+            }
 
             BufferedImage bi = new BufferedImage(tileWidth, tileHeight, BufferedImage.TYPE_INT_RGB);
             bi.getGraphics().drawImage(image, 0, 0, null);
@@ -366,6 +435,17 @@ public class OmeroImage implements IOrbitImage, Closeable {
         return bim;
     }
 
+    private BufferedImage createImageMultiChannel(int width, int height, final byte[][] bytesPerChannel, boolean interleaved, boolean signed) {
+        BufferedImage bim = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        WritableRaster raster = bim.getRaster();
+
+        for (int c=0; c<sizeC; c++) {
+            BufferedImage bi = AWTImageTools.makeImage(bytesPerChannel[c],width,height,0,interleaved,signed);
+        }
+
+        return bim;
+    }
+
     private BufferedImage createImageGray(int width, int height, final byte[] gray) {
         BufferedImage bim = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
         WritableRaster raster = bim.getRaster();
@@ -464,5 +544,37 @@ public class OmeroImage implements IOrbitImage, Closeable {
         return numLevels;
     }
 
+    @Override
+    public String[] getChannelNames() {
+        return channelNames;
+    }
 
+    @Override
+    public void setChannelNames(String[] channelNames) {
+        this.channelNames = channelNames;
+    }
+
+    @Override
+    public float[] getChannelContributions() {
+        return channelContributions;
+    }
+
+    @Override
+    public void setChannelContributions(float[] channelContributions) {
+        this.channelContributions = channelContributions;
+    }
+
+    @Override
+    public float[] getHues() {
+        return hues;
+    }
+
+    @Override
+    public void setHues(float[] hues) {
+        this.hues = hues;
+    }
+
+    public boolean isMultiChannel() {
+        return multiChannel;
+    }
 }
