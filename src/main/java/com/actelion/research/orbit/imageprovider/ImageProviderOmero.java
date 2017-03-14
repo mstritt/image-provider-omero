@@ -795,7 +795,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             Collections.sort(rdfList, new Comparator<RawDataFile>() {
                 @Override
                 public int compare(RawDataFile o1, RawDataFile o2) {
-                    return o1.getFileName().compareTo(o1.getFileName());
+                    return o1.getFileName().compareTo(o2.getFileName());
                 }
             });
         } catch (Exception e) {

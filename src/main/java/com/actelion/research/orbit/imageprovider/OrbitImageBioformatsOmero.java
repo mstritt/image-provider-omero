@@ -147,7 +147,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                     r.setMetadataStore(meta);
                     
                    // r.setId(filename);
-                    r.setId("omeroorbit:iid="+imageId+"\nuser=root\npass=omero\nserver=localhost\npost=4064");
+                    r.setId("omeroorbit:iid="+imageId);
                 //    r.setId("omero:iid=4\nuser=root\npass=omero\nserver=localhost\npost=4064");
 
                     if (series>=r.getSeriesCount()) {
@@ -189,7 +189,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                             if (is16bit && !minMaxCache.containsKey((originalFilename)))
                             {
                                 IFormatReader r2 = getIFormatReader(filename, r.getResolutionCount() - 1);
-                                r2.setId("omeroorbit:iid="+imageId+"\nuser=root\npass=omero\nserver=localhost\npost=4064");
+                                r2.setId("omeroorbit:iid="+imageId);
                                 r2.setSeries(series);
                                 MinMaxCalculator minMax = new MinMaxCalculator(r2);
                                 int[] nos = minMax.getZCTCoords(0);
@@ -206,8 +206,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                                     Double tmax = minMax.getChannelKnownMaximum(c);
                                     min[c] = (int) tmin.doubleValue();
                                     max[c] = (int) tmax.doubleValue();
-                                  //  max[c] = 4000;
-                                    logger.info("minIntens: "+min[c]+" maxIntens: "+max[c]+" channel: "+c);
+                                    logger.trace("channel: "+c+"  minIntens: "+min[c]+" maxIntens: "+max[c]);
                                 }
                                 minMaxCache.put(originalFilename,new MinMaxPerChan(min,max));
                                 r2.close();
@@ -390,7 +389,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         int w = (int) Math.min(optimalTileWidth, width - x);
         int h = (int) Math.min(optimalTileHeight, height - y);
         BufferedImageReader bir = reader.get();
-        System.out.println("this.level="+this.level+" / bir.level="+bir.getResolution());
         if (bir.getResolution()!=this.level) bir.setResolution(this.level);
 
         if (!doMergeChannels(bir)) {   // brightfield
@@ -699,12 +697,8 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 
     public BufferedImage getThumbnail() {
 
-        if (true) {
-            return new BufferedImage(300,200,BufferedImage.TYPE_INT_RGB);
-        }
-
         long thumbW=1;
-         long thumbH=1;
+        long thumbH=1;
 
         try {
             IFormatReader ir = null;

@@ -62,7 +62,7 @@ public class OmeroReaderOrbit extends FormatReader {
         FormatTools.checkPlaneNumber(this, no);
         FormatTools.checkBufferSize(this, buf.length, w, h);
 
-        System.out.println("no,x,y,w,h: "+no+", "+x+", "+y+", "+w+", "+h);
+        //System.out.println("no,x,y,w,h: "+no+", "+x+", "+y+", "+w+", "+h);
 
         final int[] zct = FormatTools.getZCTCoords(this, no);
         byte[] plane;
@@ -222,7 +222,7 @@ public class OmeroReaderOrbit extends FormatReader {
             final int sizeY = store.getResolutionDescriptions()[resolution].sizeY;
 
             int omeroRes = Math.max(0,(store.getResolutionLevels() - 1) - resolution);
-            System.out.println("trying to set resolution level "+resolution+" / "+omeroRes);
+            logger.trace("trying to set resolution level "+resolution+" / "+omeroRes);
             store.setResolutionLevel(omeroRes);
 
 
@@ -251,7 +251,7 @@ public class OmeroReaderOrbit extends FormatReader {
             m.pixelType = FormatTools.pixelTypeFromString(pixelType);
             m.resolutionCount = store.getResolutionLevels();
 
-            System.out.println("OrbitReader: WxH: "+m.sizeX+" x "+m.sizeY);
+            logger.trace("WxH: "+m.sizeX+" x "+m.sizeY);
 
             Length x = pix.getPhysicalSizeX();
             Length y = pix.getPhysicalSizeY();
@@ -331,7 +331,7 @@ public class OmeroReaderOrbit extends FormatReader {
                 }
             }
 
-            System.out.println("end.");
+            logger.trace("init end");
 
         }
         catch (ServerError e) {
