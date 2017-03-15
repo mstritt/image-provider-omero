@@ -95,11 +95,13 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private transient GatewayAndCtx gatewayAndCtx = new GatewayAndCtx();
     protected int searchLimit = 1000;
     protected boolean listAllSeries = true;
+    protected int selectedSeries = 0;
     protected final Map<Integer, Map<String, RawMeta>> metaHashRDF = new ConcurrentHashMap<>();
     protected final Map<Integer, Map<String, RawMeta>> metaHashRawData = new ConcurrentHashMap<>();
     private boolean onlyOwnerObjects = false; // show/edit only objects owned by current user (otherwise show/edit all with read/write access)
     private String configFile = "OrbitOmero.properties";
     private boolean useSSL = false;
+
 
     public ImageProviderOmero() {
         Properties props = new Properties();
@@ -367,7 +369,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             for (IObject result : results) {
                 Image image = (Image) result;
                 ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(group), image.getId().getValue());
-                if (imageData.getSeries() == 0 || listAllSeries) {
+                if (imageData.getSeries() == selectedSeries || listAllSeries) {
                     rdfList.add(createRawDataFile(imageData,group));
                 }
             }
@@ -787,7 +789,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             while (j.hasNext()) {
                 image = j.next();
                 //System.out.println(image.getName()+" / index: "+ image.getSeries());
-                if (image.getSeries() == 0 || listAllSeries) {
+                if (image.getSeries() == selectedSeries || listAllSeries) {
                     if (limit < 0 || cnt++ > limit) break;
                     rdfList.add(createRawDataFile(image,group));
                 }
@@ -1745,6 +1747,14 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         frame.setBounds(0,0,500,700);
         frame.setVisible(true);
         RawUtilsCommon.centerComponent(frame);
+    }
+
+    public int getSelectedSeries() {
+        return selectedSeries;
+    }
+
+    public void setSelectedSeries(int selectedSeries) {
+        this.selectedSeries = selectedSeries;
     }
 
     public static void main(String[] args) throws Exception {

@@ -23,14 +23,14 @@ import com.actelion.research.orbit.beans.RawData;
 import com.actelion.research.orbit.beans.RawDataFile;
 import com.actelion.research.orbit.gui.AbstractOrbitTree;
 import com.actelion.research.orbit.gui.IOrbitTree;
+import com.actelion.research.orbit.gui.IntInputVerifier;
 import com.actelion.research.orbit.imageprovider.ImageProviderOmero;
 import com.actelion.research.orbit.utils.Logger;
 import com.actelion.research.orbit.utils.RawUtilsCommon;
 
 import javax.swing.*;
-import javax.swing.event.TreeExpansionEvent;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.*;
+import javax.swing.text.NumberFormatter;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -53,7 +53,13 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
     private static String RAWDATAFILES_SELECTED = "raw_data_files_selected";
     private ImageProviderOmero imageProviderOmero;
     private final JCheckBox onlyMyEntitiesCB = new JCheckBox("show only my assets", false);
-    private final JCheckBox onlyFirstSeriesCB = new JCheckBox("only first series", false);
+    private final JCheckBox onlySelectedSeriesCB = new JCheckBox("only selected series", false);
+    private final Integer current = new Integer(0);
+    private final Integer min = new Integer(0);
+    private final Integer max = new Integer(9999);
+    private final Integer step = new Integer(1);
+    private final SpinnerNumberModel spinnerModel = new SpinnerNumberModel(current, min, max, step);
+    private final JSpinner seriesSpinner = new JSpinner(spinnerModel);
 
 
     public JOrbitTreeOmero(final ImageProviderOmero imageProviderOmero, String rootName, List<AbstractOrbitTreeNode> treeNodeTypes) {
@@ -63,22 +69,39 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
         this.treeNodeTypes = treeNodeTypes;
         this.imageProviderOmero = imageProviderOmero;
 
+        JFormattedTextField tf = ((JSpinner.DefaultEditor) seriesSpinner.getEditor()).getTextField();
+        tf.setInputVerifier(new IntInputVerifier(0,min,max));
+        ((NumberFormatter) tf.getFormatter()).setAllowsInvalid(false);
+
         onlyMyEntitiesCB.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (imageProviderOmero != null) {
                     imageProviderOmero.setOnlyOwnerObjects(onlyMyEntitiesCB.isSelected());
                     refresh();
+                    firePropertyChange("SERIES_CHANGED", null, (Integer) seriesSpinner.getValue());
                 }
             }
         });
 
-        onlyFirstSeriesCB.addActionListener(new ActionListener() {
+        onlySelectedSeriesCB.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (imageProviderOmero != null) {
-                    imageProviderOmero.setListAllSeries(!onlyFirstSeriesCB.isSelected());
+                    imageProviderOmero.setListAllSeries(!onlySelectedSeriesCB.isSelected());
                     refresh();
+                    firePropertyChange("SERIES_CHANGED", null, (Integer) seriesSpinner.getValue());
+                }
+            }
+        });
+
+        seriesSpinner.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (imageProviderOmero != null) {
+                    imageProviderOmero.setSelectedSeries((Integer) seriesSpinner.getValue());
+                    refresh();
+                    firePropertyChange("SERIES_CHANGED", null, (Integer) seriesSpinner.getValue());
                 }
             }
         });
@@ -295,7 +318,8 @@ public class JOrbitTreeOmero extends AbstractOrbitTree {
     public JComponent createTreeOptionPane() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT,5,0));
         panel.add(onlyMyEntitiesCB);
-        panel.add(onlyFirstSeriesCB);
+        panel.add(onlySelectedSeriesCB);
+        panel.add(seriesSpinner);
         return panel;
     }
 
