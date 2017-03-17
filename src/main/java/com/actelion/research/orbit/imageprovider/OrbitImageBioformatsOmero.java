@@ -92,7 +92,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     private long imageId;
     private long groupId;
 
-    public OrbitImageBioformatsOmero(final String filename, final int level, final int series, boolean useCache, ImageProviderOmero.GatewayAndCtx gatewayAndCtx, long imageId, long groupId) throws IOException, FormatException {
+    public OrbitImageBioformatsOmero(final String filename, final int level, final int series, boolean useCache, ImageProviderOmero.GatewayAndCtx gatewayAndCtx, final long imageId, long groupId) throws IOException, FormatException {
         this.originalFilename = filename;
         this.series = series;
         this.filename = filename+"["+level+"]"+" ["+ series +"]";    // level/series here is important because filename is part of key for hashing!
