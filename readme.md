@@ -9,6 +9,7 @@ Generic jar:
 Works with Omero 5.2.x (and probably with 5.1.x). For other Omero versions please change dependencies in build.gradle.
 
 ### Updates:
+- 1.3.0: implements a IFormat reader, multi-channel (fluorescence) support
 - Now works with all groups, not just default group
 
 ####TODO:

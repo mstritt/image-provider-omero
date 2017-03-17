@@ -1,6 +1,6 @@
 /*
  *     Orbit, a versatile image analysis software for biological image-based quantification.
- *     Copyright (C) 2009 - 2016 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *     Copyright (C) 2009 - 2017 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -48,6 +48,7 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * Implements an IOrbitImage using the Omero backend. Basically it reads image data from Omero tile by tile.
+ * Deprecated: Use OrbitImageBioformatsOmero instead.
  */
 @Deprecated
 public class OmeroImage implements IOrbitImageMultiChannel, Closeable {

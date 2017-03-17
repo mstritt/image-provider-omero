@@ -1,5 +1,24 @@
 
 
+/*
+ *     Orbit, a versatile image analysis software for biological image-based quantification.
+ *     Copyright (C) 2009 - 2017 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *
+ *     This program is free software: you can redistribute it and/or modify
+ *     it under the terms of the GNU General Public License as published by
+ *     the Free Software Foundation, either version 3 of the License, or
+ *     (at your option) any later version.
+ *
+ *     This program is distributed in the hope that it will be useful,
+ *     but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *     GNU General Public License for more details.
+ *
+ *     You should have received a copy of the GNU General Public License
+ *     along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 package com.actelion.research.orbit.imageprovider;
 
 import loci.common.DateTools;
@@ -63,7 +82,6 @@ public class OmeroReaderOrbit extends FormatReader {
         FormatTools.checkBufferSize(this, buf.length, w, h);
 
         //System.out.println("no,x,y,w,h: "+no+", "+x+", "+y+", "+w+", "+h);
-
         final int[] zct = FormatTools.getZCTCoords(this, no);
         byte[] plane;
         try {
@@ -80,14 +98,7 @@ public class OmeroReaderOrbit extends FormatReader {
             }
         }
 
-//        RandomAccessInputStream s = new RandomAccessInputStream(plane);
-//        readPlane(s, x, y, w, h, buf);
-//        s.close();
-
-   //     return buf;
-
         System.arraycopy(plane,0,buf,0,plane.length);
-
         return plane;
     }
 
@@ -106,46 +117,7 @@ public class OmeroReaderOrbit extends FormatReader {
     @Override
     public void setResolution(int no) {
         this.resolution = no;
-
-//        try {
-//            System.out.println("current id / image id : "+ currentId+" / "+imageId);
-//            if (imageId>0) {
-//                if (store.getResolutionDescriptions()!=null && store.getResolutionLevels()>resolution && store.getResolutionDescriptions().length>resolution && store.getResolutionDescriptions()[resolution]!=null) {
-//                    renewProxy();
-//                    CoreMetadata m = core.get(0);
-//                    m.sizeX = store.getResolutionDescriptions()[resolution].sizeX;
-//                    m.sizeY = store.getResolutionDescriptions()[resolution].sizeY;
-//                }
-//            }
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-
-
-//        try {
-//            //store.setResolutionLevel(no);
-//            store.setResolutionLevel((store.getResolutionLevels() - 1) - no);
-//        } catch (ServerError serverError) {
-//            serverError.printStackTrace();
-//        }
     }
-
-
-//    @Override
-//    public int getOptimalTileWidth() {
-//        return 512;
-//    }
-//
-//    @Override
-//    public int getOptimalTileHeight() {
-//        return 512;
-//    }
-
-
-//    @Override
-//    public boolean isRGB() {
-//        return true;
-//    }
 
 
     @Override
@@ -206,7 +178,6 @@ public class OmeroReaderOrbit extends FormatReader {
         }
 
         this.imageId = iid;
-      //  RawPixelsStorePrx store = null;
         try {
 
             store = gatewayAndCtx.getGateway().getPixelsStore(gatewayAndCtx.getCtx(groupId));
@@ -251,7 +222,7 @@ public class OmeroReaderOrbit extends FormatReader {
             m.pixelType = FormatTools.pixelTypeFromString(pixelType);
             m.resolutionCount = store.getResolutionLevels();
 
-            logger.trace("WxH: "+m.sizeX+" x "+m.sizeY);
+            logger.trace("Width x Height: "+m.sizeX+" x "+m.sizeY);
 
             Length x = pix.getPhysicalSizeX();
             Length y = pix.getPhysicalSizeY();
@@ -344,11 +315,7 @@ public class OmeroReaderOrbit extends FormatReader {
             e.printStackTrace();
         }
         finally {
-//            try {
-//                if (store!=null)
-//                    store.close();
-//            } catch (Exception e) {
-//            }
+            // don't close store here - it sould be closed from external via close()
         }
     }
 

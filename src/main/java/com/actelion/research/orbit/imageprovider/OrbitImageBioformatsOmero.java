@@ -21,6 +21,7 @@ package com.actelion.research.orbit.imageprovider;
 
 import com.actelion.research.orbit.dal.IOrbitImageMultiChannel;
 import com.actelion.research.orbit.exceptions.OrbitImageServletException;
+import com.actelion.research.orbit.utils.ChannelToHue;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import loci.common.services.ServiceFactory;
@@ -91,36 +92,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     private long imageId;
     private long groupId;
 
-    private static final float HueAlexa594 = 0f / 360f;
-    private static final float HueCy3 = 40f / 360f;
-    private static final float HueCy5 = 0f / 360f;  // 60
-    private static final float HueEGFP = 141f / 360f;
-    private static final float HueDAPI = 240f / 360f; // 202
-    private static final float HueFITC = 108f / 360f;
-    private static final float HueTRITC = 22f / 360f;
-
-    public static final String chanAlexa594 = "alexa594";
-    public static final String chanEGFP = "egfp";
-    public static final String chanCy5 = "cy5";
-    public static final String chanCy3 = "cy3";
-    public static final String chanTritc = "tritc";
-    public static final String chanFitc = "fitc";
-    public static final String chanDapi = "dapi";
-    public static final String chanUnknown = "unknown";
-
- //   private RawPixelsStorePrx omeroStore;
- //   private omero.model.Image omeroImage;
- //   private Pixels omeroPixels;
-
-
-//    static {
-//        tileCache = CacheBuilder.
-//                newBuilder().
-//                //maximumSize(maxSize).
-//                        expireAfterWrite(5, TimeUnit.MINUTES).
-//                        build();
-//    }
-
     public OrbitImageBioformatsOmero(final String filename, final int level, final int series, boolean useCache, ImageProviderOmero.GatewayAndCtx gatewayAndCtx, long imageId, long groupId) throws IOException, FormatException {
         this.originalFilename = filename;
         this.series = series;
@@ -145,10 +116,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                     OMEXMLService service = factory.getInstance(OMEXMLService.class);
                     IMetadata meta = service.createOMEXMLMetadata();
                     r.setMetadataStore(meta);
-                    
-                   // r.setId(filename);
                     r.setId("omeroorbit:iid="+imageId);
-                //    r.setId("omero:iid=4\nuser=root\npass=omero\nserver=localhost\npost=4064");
 
                     if (series>=r.getSeriesCount()) {
                         close();
@@ -174,7 +142,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                                 if (name==null) {
                                     name = "Channel"+c;
                                  }
-                                logger.debug("channel name "+c+": "+name);
+                                logger.info("channel name "+c+": "+name);
                                 channelNames[c] = name;
                             }
                         }
@@ -251,18 +219,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             height = reader.get().getSizeY();
             numBandsOriginal = reader.get().getSizeC();
 
-//            int optimalTileWidth2 = OrbitUtils.TILE_SIZE_DEFAULT;
-//            int optimalTileHeight2 = OrbitUtils.TILE_SIZE_DEFAULT;
-//            String ending = RawUtilsCommon.getExtension(filename, true);
-//            if (ending.equals("png") || ending.equals("jpg") || ending.equals("jpeg") || ending.equals("gif") || ending.equals("bmp")
-//                    || ((width * height) <= (2048L * 2048L))) {
-//                optimalTileWidth2 = (int) width;
-//                optimalTileHeight2 = (int) height;
-//            }
-//            optimalTileWidth = optimalTileWidth2;
-//            optimalTileHeight = optimalTileHeight2;
-
-
             BufferedImageReader bir = reader.get();
             if (bir.getResolution()!=this.level) bir.setResolution(this.level);
 //            optimalTileWidth = bir.getOptimalTileWidth();
@@ -270,10 +226,11 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 //            if (optimalTileWidth< TILE_SIZE_DEFAULT && width>=TILE_SIZE_DEFAULT) optimalTileWidth = TILE_SIZE_DEFAULT;
 //            if (optimalTileHeight< TILE_SIZE_DEFAULT && height>=TILE_SIZE_DEFAULT) optimalTileHeight = TILE_SIZE_DEFAULT;
 
+            // bir.getOptimalTileWidth() seems to return the full with of the image, thus we use a fixed tilesize here
             optimalTileWidth = TILE_SIZE_DEFAULT;
             optimalTileHeight = TILE_SIZE_DEFAULT;
 
-            logger.debug("optimal tile size: "+optimalTileWidth+" x "+optimalTileHeight);
+            logger.debug("tile size: "+optimalTileWidth+" x "+optimalTileHeight);
 
 
             originalBitsPerSample = bir.getBitsPerPixel();
@@ -310,19 +267,10 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     }
 
     /**
-     * checks if sizeC==3 and channels contain red, green, blue
+     * checks if it is not already RGB, sizeC==3 and rgbChannelCount==1
      */
     private boolean mergeRGBChannels(boolean isRGB, int sizeC, int rgbChannelCount,  IMetadata meta) {
-//        return  (!isRGB) && (sizeC==3) &&
-//                (meta!=null && meta.getChannelName(0,0)!=null && meta.getChannelName(0,1)!=null && meta.getChannelName(0,2)!=null) &&
-//                (
-//                        meta.getChannelName(0,0).equalsIgnoreCase("red") ||  meta.getChannelName(0,1).equalsIgnoreCase("red") ||  meta.getChannelName(0,2).equalsIgnoreCase("red")
-//                     && meta.getChannelName(0,0).equalsIgnoreCase("green") ||  meta.getChannelName(0,1).equalsIgnoreCase("green") ||  meta.getChannelName(0,2).equalsIgnoreCase("green")
-//                     && meta.getChannelName(0,0).equalsIgnoreCase("blue") ||  meta.getChannelName(0,1).equalsIgnoreCase("blue") ||  meta.getChannelName(0,2).equalsIgnoreCase("blue")
-//                );
-
         return  (!isRGB) && (sizeC==3) && (rgbChannelCount==1);
-
     }
 
 
@@ -344,9 +292,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 
     private boolean doMergeChannels(IFormatReader r) {
         int c = r.getSizeC();
-       // return c > 1;
         return c > 1 && !r.isRGB();
-       // return c > 1 && c <= 4 && !r.isRGB();
     }
 
 
@@ -383,7 +329,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     }
 
     protected BufferedImage getPlane(int tileX, int tileY, final float[] channelContributions) throws Exception {
-        System.out.println("OrbitImageBioformatsReader: tileXH: "+optimalTileWidth+" x "+optimalTileHeight);
         int x = optimalTileWidth * tileX;
         int y = optimalTileHeight * tileY;
         int w = (int) Math.min(optimalTileWidth, width - x);
@@ -425,7 +370,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                             int s = 0;
                             for (int b = 0; b < bit.getSampleModel().getNumBands(); b++) {
                                 int intens = bit.getRaster().getSample(ix, iy, b);
-                               // if (intens>0) System.out.println(intens);
                                 if (is16bit) {
                                     intens = autoscale(intens, pixels, minIntens, maxIntens);
                                 }
@@ -454,97 +398,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         }  // fluo
     }
 
-    private String standardizeChannelName(String name) {
-        String stdName = name.toLowerCase();
-        switch (stdName) {
-            case "alexa fluor 594": {
-                stdName = chanAlexa594;
-                break;
-            }
-        }
-        return stdName;
-    }
-
-    private float getHue(int c) {
-        float hue;
-        switch (channelNames[c].toLowerCase()) {
-
-            case chanAlexa594: {
-                hue = HueAlexa594;
-                break;
-            }
-            case  "alexa fluor 594": {
-                hue = HueAlexa594;
-                break;
-            }
-            case chanCy3: {
-                hue = HueCy3;
-                break;
-            }
-            case chanCy5: {
-                hue = HueCy5;
-                break;
-            }
-            case "cy5 2 (650)": {
-                hue = HueCy5;
-                break;
-            }
-            case chanEGFP: {
-                hue = HueEGFP;
-                break;
-            }
-            case chanDapi: {
-                hue = HueDAPI;
-                break;
-            }
-            case "dapi 2 (387)": {
-                hue = HueDAPI;
-                break;
-            }
-            case chanFitc: {
-                hue = HueFITC;
-                break;
-            }
-            case "fitc 2 (485)": {
-                hue = HueFITC;
-                break;
-            }
-            case chanTritc: {
-                hue = HueTRITC;
-                break;
-            }
-            case "tritc 2 (560)": {
-                hue = HueTRITC;
-                break;
-            }
-            case "channel0": {
-                hue = HueDAPI;
-                break;
-            }
-            case "channel1": {
-                hue = HueFITC;
-                break;
-            }
-            case "channel2": {
-                hue = HueTRITC;
-                break;
-            }
-            case "channel3": {
-                hue = HueCy5;
-                break;
-            }
-            case "channel4": {
-                hue = HueEGFP;
-                break;
-            }
-            default: {
-                hue = HueDAPI;
-                break;
-            }
-        }
-        return hue;
-    }
-
+  
     /**
      *  see AWTImageTools.autoscale()
      */
@@ -772,7 +626,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         if (channelNames==null) return null;
         float[] hues = new float[channelNames.length];
         for (int c=0; c<channelNames.length; c++) {
-            hues[c] = getHue(c);
+            hues[c] = ChannelToHue.getHue(channelNames[c].toLowerCase());
         }
         return hues;
     }

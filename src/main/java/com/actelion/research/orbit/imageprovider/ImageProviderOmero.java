@@ -1,6 +1,6 @@
 /*
  *     Orbit, a versatile image analysis software for biological image-based quantification.
- *     Copyright (C) 2009 - 2016 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *     Copyright (C) 2009 - 2017 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -1759,22 +1759,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
     public static void main(String[] args) throws Exception {
         // just a demo
-        /*
-        ImageProviderOmero ip = new ImageProviderOmero();
-        boolean auth = ip.authenticateUser("g2user", "omero");
-        System.out.println("auth: "+auth);
-        int rdfId = 160;
-        RawDataFile rdf = ip.LoadRawDataFile(rdfId);
-        System.out.println(rdf.toStringDetail());
-
-        BufferedImage img = ip.getThumbnail(rdf);
-        System.out.println("overview image: " + img);
-
-        ip.close();
-        */
-
-       // ImageProviderOmero ip = new ImageProviderOmero();
-       // ip.showOrbitTree("g2user","omero");
 
         int id = 219; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
@@ -1783,38 +1767,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         RawDataFile rdf = ip.LoadRawDataFile(id);
         IOrbitImage image = ip.createOrbitImage(rdf,0);
         System.out.println(image.getFilename());
-        System.out.println("isFluo: "+((OmeroImage)image).isMultiChannel());
+        System.out.println("isMultichan: "+((OmeroImage)image).isMultiChannel());
 
         ip.close();
 
-         /*
-        long imageId = 160;
-        SimpleLogger simpleLogger = new SimpleLogger();
-        Gateway gateway = new Gateway(simpleLogger);
 
-        LoginCredentials cred = new LoginCredentials();
-        cred.getServer().setHostname("localhost");
-        cred.getServer().setPort(4064);
-        cred.setApplicationName("Orbit");
-        cred.getUser().setUsername("g2user");
-        cred.getUser().setPassword("omero");
-        cred.setGroupID(-1);    // 84, 34
-        ExperimenterData user = gateway.connect(cred);
-        //SecurityContext ctx = new SecurityContext(user.getGroupId());
-        SecurityContext ctx = new SecurityContext(34);
-
-        try {
-            BrowseFacility browse = gateway.getFacility(BrowseFacility.class);
-            ImageData image = browse.getImage(ctx, imageId);
-            System.out.println(image);
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                gateway.disconnect();
-            } catch (Exception e1) {};
-        }
-        */
 
     }
 }
