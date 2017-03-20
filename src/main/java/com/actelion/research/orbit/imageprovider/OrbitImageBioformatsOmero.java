@@ -178,8 +178,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                                 }
                                 minMaxCache.put(originalFilename,new MinMaxPerChan(min,max));
                                 r2.close();
-                            //   minMax.setResolution(level);
-
                             }
                             bir = BufferedImageReader.makeBufferedImageReader(r);
                         }
