@@ -135,57 +135,53 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                     if (doMergeChannels(r)) {
                         // fluo images
 
-                        if (channelNames==null) {
+                        if (channelNames == null) {
                             channelNames = new String[r.getSizeC()];
-                            for (int c=0; c<r.getSizeC(); c++) {
-                                String name = meta.getChannelName(r.getSeries(),c);
-                                if (name==null) {
-                                    name = "Channel"+c;
-                                 }
-                                logger.info("channel name "+c+": "+name);
+                            for (int c = 0; c < r.getSizeC(); c++) {
+                                String name = meta.getChannelName(r.getSeries(), c);
+                                if (name == null) {
+                                    name = "Channel" + c;
+                                }
+                                logger.info("channel name " + c + ": " + name);
                                 channelNames[c] = name;
                             }
                         }
 
                         // build hueMap
                         hueMap = getHues();
-
-                        is16bit = r.getBitsPerPixel()>=16;
-                        logger.debug("is16bit: "+is16bit);
-
-                        synchronized (minMaxCache) {
-                            if (is16bit && !minMaxCache.containsKey((originalFilename)))
-                            {
-                                IFormatReader r2 = getIFormatReader(filename, r.getResolutionCount() - 1);
-                                r2.setId("omeroorbit:iid="+imageId);
-                                r2.setSeries(series);
-                                MinMaxCalculator minMax = new MinMaxCalculator(r2);
-                                int[] nos = minMax.getZCTCoords(0);
-                                int z = nos[0], t = nos[2];
-                                for (int ic=0; ic<minMax.getSizeC(); ic++) {
-                                    int idx = minMax.getIndex(z, ic, t);
-                                    minMax.openBytes(idx); // needed to make min,max available
-                                }
-
-                                int[] min = new int[r.getSizeC()];
-                                int[] max = new int[r.getSizeC()];
-                                for (int c = 0; c < minMax.getSizeC(); c++) {
-                                   Double tmin = minMax.getChannelKnownMinimum(c);
-                                    Double tmax = minMax.getChannelKnownMaximum(c);
-                                    min[c] = (int) tmin.doubleValue();
-                                    max[c] = (int) tmax.doubleValue();
-                                    logger.trace("channel: "+c+"  minIntens: "+min[c]+" maxIntens: "+max[c]);
-                                }
-                                minMaxCache.put(originalFilename,new MinMaxPerChan(min,max));
-                                r2.close();
-                            }
-                            bir = BufferedImageReader.makeBufferedImageReader(r);
-                        }
-
-                    } else {
-                        // brightfield
-                        bir = BufferedImageReader.makeBufferedImageReader(r);
                     }
+
+                    is16bit = r.getBitsPerPixel()>=16;
+                    logger.debug("is16bit: "+is16bit);
+                    synchronized (minMaxCache) {
+                        if (is16bit && !minMaxCache.containsKey((originalFilename)))
+                        {
+                            IFormatReader r2 = getIFormatReader(filename, r.getResolutionCount() - 1);
+                            r2.setId("omeroorbit:iid="+imageId);
+                            r2.setSeries(series);
+                            MinMaxCalculator minMax = new MinMaxCalculator(r2);
+                            int[] nos = minMax.getZCTCoords(0);
+                            int z = nos[0], t = nos[2];
+                            for (int ic=0; ic<minMax.getSizeC(); ic++) {
+                                int idx = minMax.getIndex(z, ic, t);
+                                minMax.openBytes(idx); // needed to make min,max available
+                            }
+
+                            int[] min = new int[r.getSizeC()];
+                            int[] max = new int[r.getSizeC()];
+                            for (int c = 0; c < minMax.getSizeC(); c++) {
+                               Double tmin = minMax.getChannelKnownMinimum(c);
+                                Double tmax = minMax.getChannelKnownMaximum(c);
+                                min[c] = (int) tmin.doubleValue();
+                                max[c] = (int) tmax.doubleValue();
+                                logger.trace("channel: "+c+"  minIntens: "+min[c]+" maxIntens: "+max[c]);
+                            }
+                            minMaxCache.put(originalFilename,new MinMaxPerChan(min,max));
+                            r2.close();
+                        }
+                    }
+
+                    bir = BufferedImageReader.makeBufferedImageReader(r);
                     synchronized (allReaders) {
                         allReaders.add(bir); // remember for closing
                     }
@@ -334,10 +330,15 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         BufferedImageReader bir = reader.get();
         if (bir.getResolution()!=this.level) bir.setResolution(this.level);
 
-        if (!doMergeChannels(bir)) {   // brightfield
+        if (!doMergeChannels(bir)) {   // brightfield or just one grayscale channel
             BufferedImage bi = bir.openImage(0,x,y,w,h);
             if (bi!=null && bi.getType()==BufferedImage.TYPE_INT_RGB) return bi;
             else {
+                if (is16bit) {
+                    int minIntens = minMaxCache.get(originalFilename).getMin()[0];
+                    int maxIntens = minMaxCache.get(originalFilename).getMax()[0];
+                    bi = AWTImageTools.autoscale(bi,minIntens,maxIntens);
+                }
                 BufferedImage biRGB = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
                 biRGB.getGraphics().drawImage(bi, 0, 0, null);
                 return biRGB;
