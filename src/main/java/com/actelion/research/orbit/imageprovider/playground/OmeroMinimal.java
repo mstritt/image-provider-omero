@@ -17,7 +17,7 @@
  *
  */
 
-package com.actelion.research.orbit.imageprovider;
+package com.actelion.research.orbit.imageprovider.playground;
 
 import omero.api.RawPixelsStorePrx;
 import omero.gateway.Gateway;

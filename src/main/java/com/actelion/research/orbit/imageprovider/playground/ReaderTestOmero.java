@@ -17,10 +17,11 @@
  *
  */
 
-package com.actelion.research.orbit.imageprovider;
+package com.actelion.research.orbit.imageprovider.playground;
 
 import com.actelion.research.orbit.beans.RawDataFile;
 import com.actelion.research.orbit.dal.IOrbitImage;
+import com.actelion.research.orbit.imageprovider.ImageProviderOmero;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;

@@ -335,7 +335,13 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         if (bir.getResolution()!=this.level) bir.setResolution(this.level);
 
         if (!doMergeChannels(bir)) {   // brightfield
-            return bir.openImage(0,x,y,w,h);
+            BufferedImage bi = bir.openImage(0,x,y,w,h);
+            if (bi!=null && bi.getType()==BufferedImage.TYPE_INT_RGB) return bi;
+            else {
+                BufferedImage biRGB = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+                biRGB.getGraphics().drawImage(bi, 0, 0, null);
+                return biRGB;
+            }
         }
         else {   // fluo -> merge channels
             BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);

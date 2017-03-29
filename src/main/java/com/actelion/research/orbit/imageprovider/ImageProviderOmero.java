@@ -855,8 +855,9 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 SimpleLogger simpleLogger = new SimpleLogger();
                 gateway = new Gateway(simpleLogger);
                 ExperimenterData user = gateway.connect(cred);
-
                 ctx = new SecurityContext(user.getGroupId());    // default group
+                log.info("Omero server version: " + gateway.getServerVersion());
+
             } else {
                 if (!gateway.isConnected()/*||!gateway.isAlive(ctx)*/) {
                     gateway.connect(cred);

@@ -196,18 +196,22 @@ public class OmeroReaderOrbit extends FormatReader {
             logger.trace("trying to set resolution level "+resolution+" / "+omeroRes);
             store.setResolutionLevel(omeroRes);
 
+            long pixId = image.getDefaultPixels().getId();  // to be replaced by pixelsId?
+            logger.debug("pixId: "+pixId+" / imageId: "+imageId);
+            logger.debug("imageGroup: "+image.getGroupId()+" security context: "+groupId);
 
             IPixelsPrx pixelService = gatewayAndCtx.getGateway().getPixelsService(gatewayAndCtx.getCtx(groupId));
-            Pixels pix = pixelService.retrievePixDescription(iid);
-
-            final int sizeZ = pix.getSizeZ().getValue();
-            final int sizeC = pix.getSizeC().getValue();
-            final int sizeT = pix.getSizeT().getValue();
+            Pixels pix = pixelService.retrievePixDescription(pixId);
+            logger.debug("pixels: "+pix);
+            if (pix==null) throw new FormatException("Error retrieving pixels object for image "+imageId+", pixelsId: "+pixId+" groupId: "+groupId);
+            final int sizeZ = pix.getSizeZ()!=null? pix.getSizeZ().getValue():0;
+            final int sizeC = pix.getSizeC()!=null? pix.getSizeC().getValue():0;
+            final int sizeT = pix.getSizeT()!=null? pix.getSizeT().getValue():0;
             final String pixelType = pix.getPixelsType().getValue().getValue();
 
             // populate metadata
 
-            LOGGER.info("Populating metadata");
+            LOGGER.debug("Populating metadata");
 
             CoreMetadata m = core.get(0);
             m.sizeX = sizeX;
@@ -332,6 +336,6 @@ public class OmeroReaderOrbit extends FormatReader {
     }
 
     public void setGroupId(long groupId) {
-        this.groupId = groupId;
+          this.groupId = groupId;
     }
 }
