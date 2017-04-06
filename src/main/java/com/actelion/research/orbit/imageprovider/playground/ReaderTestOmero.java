@@ -32,9 +32,9 @@ import java.io.File;
 public class ReaderTestOmero {
     public static void main(String[] args) throws Exception {
 
-        int id = 204; //219;
+        int id = 1; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("root","omero");
+        ip.authenticateUser("root","password");
         long group = ip.getImageGroup(id);
         RawDataFile rdf = ip.LoadRawDataFile(id);
         IOrbitImage io = ip.createOrbitImage(rdf,0);
