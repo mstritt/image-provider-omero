@@ -151,7 +151,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                         hueMap = getHues();
                     }
 
-                    is16bit = r.getBitsPerPixel()>=16;
+                    is16bit = r.getBitsPerPixel()>8;
                     logger.debug("is16bit: "+is16bit);
                     synchronized (minMaxCache) {
                         final FilenameSeries key = new FilenameSeries(originalFilename,series);
