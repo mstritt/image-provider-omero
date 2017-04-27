@@ -9,9 +9,7 @@ Generic jar:
 Works with Omero 5.2.x (and probably with 5.1.x). For other Omero versions please change dependencies in build.gradle.
 
 ### Updates:
-- 1.3.6: pixelsId bugfix, getPlane returns always a RGB image
-- 1.3.0: implements a IFormat reader, multi-channel (fluorescence) support
-- Now works with all groups, not just default group
+-1.4.2: >8bit,<16bit bugfix, isRGBImage() 
 
 ####TODO:
 - getRawDataFileUrl(): auto login / session handling (so far one has to login via webinterface first)

@@ -32,16 +32,16 @@ import java.io.File;
 public class ReaderTestOmero {
     public static void main(String[] args) throws Exception {
 
-        int id = 1; //219;
+        int id = 101; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
         ip.authenticateUser("root","password");
         long group = ip.getImageGroup(id);
         RawDataFile rdf = ip.LoadRawDataFile(id);
         IOrbitImage io = ip.createOrbitImage(rdf,0);
         System.out.println(io.getFilename()+" wxh: "+io.getWidth()+" x "+io.getHeight());
-        Raster raster = io.getTileData(0,0);
+        Raster raster = io.getTileData(1,1);
 
-        WritableRaster writableRaster = raster.createCompatibleWritableRaster(0,0,512,512);
+        WritableRaster writableRaster = raster.createCompatibleWritableRaster(1*512,1*512,512,512);
         writableRaster.setDataElements(0, 0, raster);
         writableRaster = writableRaster.createWritableTranslatedChild(0,0);
 

@@ -127,7 +127,9 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                     r.setSeries(series);
                     r.setResolution(level);
 
-                    if (mergeRGBChannels(r.isRGB(), r.getSizeC(), r.getRGBChannelCount() ,meta)) {
+                    //if (mergeRGBChannels(r.isRGB(), r.getSizeC(), r.getRGBChannelCount() ,meta))
+                    if (((OmeroReaderOrbit)r).isRGBImage())
+                    {
                         r = new ChannelMerger(r);
                     }
 
@@ -262,14 +264,16 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     }
 
     /**
-     * checks if it is not already RGB, sizeC==3 and rgbChannelCount==1
+     * Checks if it is not already RGB, sizeC==3 and rgbChannelCount==1
+     * Deprecated (does not work for all images). Use OmeroReaderOrbit.isRGBImage() instead.
      */
+    @Deprecated
     private boolean mergeRGBChannels(boolean isRGB, int sizeC, int rgbChannelCount,  IMetadata meta) {
         return  (!isRGB) && (sizeC==3) && (rgbChannelCount==1);
     }
 
 
-    private IFormatReader getIFormatReader(String filename, int level) {
+    private OmeroReaderOrbit getIFormatReader(String filename, int level) {
         try {
             OmeroReaderOrbit r = new OmeroReaderOrbit();
             r.setGroupId(groupId);
