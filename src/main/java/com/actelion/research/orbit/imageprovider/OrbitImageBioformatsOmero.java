@@ -306,6 +306,11 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     }
 
     @Override
+    public BufferedImage getOverviewImage() {
+        return null;
+    }
+
+    @Override
     public Raster getTileData(int tileX, int tileY, float[] channelContributions) {
         try {
            BufferedImage img = getPlane(tileX, tileY, channelContributions!=null?channelContributions:this.channelContributions);

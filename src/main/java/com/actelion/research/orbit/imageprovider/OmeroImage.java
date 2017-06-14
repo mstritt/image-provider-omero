@@ -283,6 +283,11 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
           return getTileData(tileX,tileY,null);
     }
 
+    @Override
+    public BufferedImage getOverviewImage() {
+        return null;
+    }
+
 
     /**
      * Load original tile data merge to RGB with channelContributions -> uncompressed from server side ???
