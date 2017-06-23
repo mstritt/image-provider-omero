@@ -19,9 +19,11 @@
 
 package com.actelion.research.orbit.imageprovider;
 
+import com.actelion.research.orbit.beans.MinMaxPerChan;
 import com.actelion.research.orbit.dal.IOrbitImageMultiChannel;
 import com.actelion.research.orbit.exceptions.OrbitImageServletException;
 import com.actelion.research.orbit.utils.ChannelToHue;
+import com.actelion.research.orbit.utils.RawUtilsCommon;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import loci.common.services.ServiceFactory;
@@ -40,12 +42,11 @@ import javax.media.jai.PlanarImage;
 import java.awt.*;
 import java.awt.image.*;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 
@@ -80,6 +81,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     private long height;
     private boolean is16bit = false;
     protected static final Map<FilenameSeries,MinMaxPerChan> minMaxCache = new ConcurrentHashMap<>();
+    protected MinMaxPerChan minMaxAnalysis;
     private String[] channelNames;
     protected static final ColorModel rgbColorModel = new BufferedImage(1,1,BufferedImage.TYPE_INT_RGB).getColorModel();
     private int series = 0;
@@ -91,6 +93,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     private ImageProviderOmero.GatewayAndCtx gatewayAndCtx;
     private long imageId;
     private long groupId;
+    private AtomicLong hueUpdateTime = new AtomicLong(0);
 
     public OrbitImageBioformatsOmero(final String filename, final int level, final int series, boolean useCache, ImageProviderOmero.GatewayAndCtx gatewayAndCtx, final long imageId, long groupId) throws IOException, FormatException {
         this.originalFilename = filename;
@@ -184,6 +187,11 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                         }
                     }
 
+                    if (is16bit) {
+                        minMaxAnalysis = new MinMaxPerChan(new int[r.getSizeC()],new int[r.getSizeC()]);
+                        Arrays.fill(minMaxAnalysis.getMax(), RawUtilsCommon.MAX_INTENS_16BIT);
+                    }
+
                     bir = BufferedImageReader.makeBufferedImageReader(r);
                     synchronized (allReaders) {
                         allReaders.add(bir); // remember for closing
@@ -233,7 +241,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             originalBitsPerSample = bir.getBitsPerPixel();
             interleaved = bir.isInterleaved();
             try {
-                BufferedImage img = getPlane(0, 0, null);
+                BufferedImage img = getPlane(0, 0, null,true);
                 colorModel = img.getColorModel();
                 sampleModel = img.getSampleModel();
                 numBands = sampleModel.getNumBands();
@@ -301,8 +309,14 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     }
 
     @Override
-    public Raster getTileData(int tileX, int tileY) {
-        return getTileData(tileX, tileY, null);
+    public Raster getTileData(int tileX, int tileY, boolean analysis) {
+        return getTileData(tileX, tileY, null, analysis);
+    }
+
+
+    @Override
+    public boolean is16bit() {
+        return is16bit;
     }
 
     @Override
@@ -310,10 +324,11 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         return null;
     }
 
+   
     @Override
-    public Raster getTileData(int tileX, int tileY, float[] channelContributions) {
+    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis) {
         try {
-           BufferedImage img = getPlane(tileX, tileY, channelContributions!=null?channelContributions:this.channelContributions);
+           BufferedImage img = getPlane(tileX, tileY, channelContributions!=null?channelContributions:this.channelContributions, analysis);
            // ensure tiles have always full tileWidth and tileHeight (even at borders)
            if (img.getWidth()!=getTileWidth() || img.getHeight()!=getTileHeight())
            {
@@ -332,7 +347,10 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         }
     }
 
-    protected BufferedImage getPlane(int tileX, int tileY, final float[] channelContributions) throws Exception {
+    protected BufferedImage getPlane(int tileX, int tileY, final float[] channelContributions, boolean analysis) throws Exception {
+        if (ChannelToHue.lastUpdate.get()>hueUpdateTime.get()) {
+            hueMap = getHues();
+        }
         int x = optimalTileWidth * tileX;
         int y = optimalTileHeight * tileY;
         int w = (int) Math.min(optimalTileWidth, width - x);
@@ -378,8 +396,13 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
                     int minIntens = 0;
                     int maxIntens = 256;
                     if (is16bit) {
-                        minIntens = minMaxCache.get(key).getMin()[c];
-                        maxIntens = minMaxCache.get(key).getMax()[c];
+                        if (analysis) {
+                            minIntens = minMaxAnalysis.getMin()[c];
+                            maxIntens = minMaxAnalysis.getMax()[c];
+                        } else {
+                            minIntens = minMaxCache.get(key).getMin()[c];
+                            maxIntens = minMaxCache.get(key).getMax()[c];
+                        }
                     }
                     for (int iy = 0; iy < h; iy++) {
                         for (int ix = 0; ix < w; ix++) {
@@ -644,6 +667,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         for (int c=0; c<channelNames.length; c++) {
             hues[c] = ChannelToHue.getHue(channelNames[c].toLowerCase());
         }
+        hueUpdateTime.set(ChannelToHue.lastUpdate.get());
         return hues;
     }
 
@@ -658,6 +682,12 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             throw new IllegalArgumentException("channelContributions length is "+channelContributions.length+" but requested channel is "+c);
         }
         return Math.abs(channelContributions[c])>0.00001f;
+    }
+
+
+    @Override
+    public MinMaxPerChan getMinMaxAnalysis() {
+        return minMaxAnalysis;
     }
 
     public class FilenameSeries {
@@ -701,32 +731,6 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             int result = filename != null ? filename.hashCode() : 0;
             result = 31 * result + series;
             return result;
-        }
-    }
-
-    public static class MinMaxPerChan {
-        private int[] min;
-        private int[] max;
-
-        public MinMaxPerChan(int[] min, int[] max) {
-            this.min = min;
-            this.max = max;
-        }
-
-        public int[] getMin() {
-            return min;
-        }
-
-        public void setMin(int[] min) {
-            this.min = min;
-        }
-
-        public int[] getMax() {
-            return max;
-        }
-
-        public void setMax(int[] max) {
-            this.max = max;
         }
     }
 

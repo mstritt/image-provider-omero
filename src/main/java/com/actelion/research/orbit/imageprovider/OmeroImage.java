@@ -19,6 +19,7 @@
 
 package com.actelion.research.orbit.imageprovider;
 
+import com.actelion.research.orbit.beans.MinMaxPerChan;
 import com.actelion.research.orbit.dal.IOrbitImageMultiChannel;
 import com.actelion.research.orbit.exceptions.OrbitImageServletException;
 import loci.formats.gui.AWTImageTools;
@@ -279,8 +280,18 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
      * @param tileY
      * @return Raster of the tile
      */
-    public Raster getTileData(int tileX, int tileY) {
-          return getTileData(tileX,tileY,null);
+    public Raster getTileData(int tileX, int tileY, boolean analysis) {
+          return getTileData(tileX,tileY,null, analysis);
+    }
+
+    @Override
+    public MinMaxPerChan getMinMaxAnalysis() {
+        return null;
+    }
+
+    @Override
+    public boolean is16bit() {
+        return false;
     }
 
     @Override
@@ -296,7 +307,7 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
      * @param tileY
      * @return Raster of the tile
      */
-    public Raster getTileData(int tileX, int tileY, float[] channelContributions) {
+    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis) {
         RawPixelsStorePrx store = null;
         try {
             //RawPixelsStorePrx store = stores.get();
@@ -321,7 +332,6 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
                 byte[][] bytesPerChannel = new byte[sizeC][];
                 for (int c=0; c<sizeC; c++) {
                     bytesPerChannel[c] = store.getTile(tileZ, c, t, tilePosX, tilePosY, tw, th);
-                    //OmeroReader
                     boolean interleaved = false;
                     image = createImageMultiChannel(tw,th,bytesPerChannel, interleaved, store.isSigned());
                 }
@@ -350,6 +360,8 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
         }
         return null;
     }
+
+  
 
     /**
      * Load preview image
@@ -443,12 +455,9 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
 
     private BufferedImage createImageMultiChannel(int width, int height, final byte[][] bytesPerChannel, boolean interleaved, boolean signed) {
         BufferedImage bim = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        WritableRaster raster = bim.getRaster();
-
         for (int c=0; c<sizeC; c++) {
             BufferedImage bi = AWTImageTools.makeImage(bytesPerChannel[c],width,height,0,interleaved,signed);
         }
-
         return bim;
     }
 

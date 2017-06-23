@@ -1768,7 +1768,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         RawDataFile rdf = ip.LoadRawDataFile(id);
         IOrbitImage image = ip.createOrbitImage(rdf,0);
         System.out.println(image.getFilename());
-        System.out.println("isMultichan: "+((OmeroImage)image).isMultiChannel());
 
         ip.close();
 

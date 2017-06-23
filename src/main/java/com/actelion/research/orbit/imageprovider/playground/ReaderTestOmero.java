@@ -39,7 +39,7 @@ public class ReaderTestOmero {
         RawDataFile rdf = ip.LoadRawDataFile(id);
         IOrbitImage io = ip.createOrbitImage(rdf,0);
         System.out.println(io.getFilename()+" wxh: "+io.getWidth()+" x "+io.getHeight());
-        Raster raster = io.getTileData(1,1);
+        Raster raster = io.getTileData(1,1,false);
 
         WritableRaster writableRaster = raster.createCompatibleWritableRaster(1*512,1*512,512,512);
         writableRaster.setDataElements(0, 0, raster);
