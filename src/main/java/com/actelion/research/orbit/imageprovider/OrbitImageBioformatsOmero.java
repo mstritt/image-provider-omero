@@ -328,7 +328,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
     @Override
     public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis) {
         try {
-           BufferedImage img = getPlane(tileX, tileY, channelContributions!=null?channelContributions:this.channelContributions, analysis);
+           BufferedImage img = getPlane(tileX, tileY, (analysis||channelContributions!=null)?channelContributions:this.channelContributions, analysis);
            // ensure tiles have always full tileWidth and tileHeight (even at borders)
            if (img.getWidth()!=getTileWidth() || img.getHeight()!=getTileHeight())
            {
