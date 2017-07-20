@@ -383,7 +383,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             int col;
             int[] pix = new int[3];
             for (int c = 0; c < sizeC; c++) {
-                if (isChannelActive(c)) {
+                if (isChannelActive(c,channelContributions,analysis)) {
                     int index = reader.get().getIndex(z, c, t);
                     ROIDef roiDef = new ROIDef(filename,level, index,x,y,w,h);
                     BufferedImage bit = useCache? OrbitImageBioformatsOmero.tileCache.getIfPresent(roiDef): null;
@@ -676,14 +676,14 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
          // not implemented
     }
 
-    public boolean isChannelActive(int c) {
-        if (channelContributions==null) return true;  // if nothing is set we assume all channels should be active
-        if (channelContributions.length <= c) {
-            throw new IllegalArgumentException("channelContributions length is "+channelContributions.length+" but requested channel is "+c);
+    protected boolean isChannelActive(final int c, final float[] channelContributions, final boolean analysis) {
+        final float[] cc = (analysis||channelContributions!=null)?channelContributions:this.channelContributions;
+        if (cc==null) return true;  // if nothing is set we assume all channels should be active
+        if (cc.length <= c) {
+            throw new IllegalArgumentException("channelContributions length is "+cc.length+" but requested channel is "+c);
         }
-        return Math.abs(channelContributions[c])>0.00001f;
+        return Math.abs(cc[c])>0.00001f;
     }
-
 
     @Override
     public MinMaxPerChan getMinMaxAnalysis() {
