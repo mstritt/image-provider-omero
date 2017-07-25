@@ -281,7 +281,7 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
      * @return Raster of the tile
      */
     public Raster getTileData(int tileX, int tileY, boolean analysis) {
-          return getTileData(tileX,tileY,null, analysis);
+          return getTileData(tileX,tileY,null, analysis, null);
     }
 
     @Override
@@ -307,7 +307,8 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
      * @param tileY
      * @return Raster of the tile
      */
-    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis) {
+    @Override
+    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis, final float[] analysisHues) {
         RawPixelsStorePrx store = null;
         try {
             //RawPixelsStorePrx store = stores.get();

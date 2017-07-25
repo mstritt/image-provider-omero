@@ -241,7 +241,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
             originalBitsPerSample = bir.getBitsPerPixel();
             interleaved = bir.isInterleaved();
             try {
-                BufferedImage img = getPlane(0, 0, null,true);
+                BufferedImage img = getPlane(0, 0, null,true, null);
                 colorModel = img.getColorModel();
                 sampleModel = img.getSampleModel();
                 numBands = sampleModel.getNumBands();
@@ -310,7 +310,7 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 
     @Override
     public Raster getTileData(int tileX, int tileY, boolean analysis) {
-        return getTileData(tileX, tileY, null, analysis);
+        return getTileData(tileX, tileY, null, analysis, null);
     }
 
 
@@ -326,9 +326,9 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
 
    
     @Override
-    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis) {
+    public Raster getTileData(int tileX, int tileY, float[] channelContributions, boolean analysis, final float[] analysisHues) {
         try {
-           BufferedImage img = getPlane(tileX, tileY, (analysis||channelContributions!=null)?channelContributions:this.channelContributions, analysis);
+           BufferedImage img = getPlane(tileX, tileY, (analysis||channelContributions!=null)?channelContributions:this.channelContributions, analysis, analysisHues);
            // ensure tiles have always full tileWidth and tileHeight (even at borders)
            if (img.getWidth()!=getTileWidth() || img.getHeight()!=getTileHeight())
            {
@@ -347,9 +347,13 @@ public class OrbitImageBioformatsOmero implements IOrbitImageMultiChannel {
         }
     }
 
-    protected BufferedImage getPlane(int tileX, int tileY, final float[] channelContributions, boolean analysis) throws Exception {
-        if (ChannelToHue.lastUpdate.get()>hueUpdateTime.get()) {
-            hueMap = getHues();
+    protected BufferedImage getPlane(int tileX, int tileY, final float[] channelContributions, boolean analysis, final float[] analysisHues) throws Exception {
+        if (analysis && analysisHues!=null) {
+            hueMap = analysisHues;
+        } else {
+            if (ChannelToHue.lastUpdate.get() > hueUpdateTime.get()) {
+                hueMap = getHues();
+            }
         }
         int x = optimalTileWidth * tileX;
         int y = optimalTileHeight * tileY;
