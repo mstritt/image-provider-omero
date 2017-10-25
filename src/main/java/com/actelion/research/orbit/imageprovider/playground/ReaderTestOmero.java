@@ -1,6 +1,6 @@
 /*
  *     Orbit, a versatile image analysis software for biological image-based quantification.
- *     Copyright (C) 2009 - 2017 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *     Copyright (C) 2009 - 2017  Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland.
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 
 package com.actelion.research.orbit.imageprovider.playground;
 
+import com.actelion.research.orbit.beans.RawAnnotation;
 import com.actelion.research.orbit.beans.RawDataFile;
 import com.actelion.research.orbit.dal.IOrbitImage;
 import com.actelion.research.orbit.imageprovider.ImageProviderOmero;
@@ -28,29 +29,50 @@ import java.awt.image.BufferedImage;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 import java.io.File;
+import java.util.Date;
 
 public class ReaderTestOmero {
     public static void main(String[] args) throws Exception {
 
-        int id = 101; //219;
+        int id = 1; // 101 219;
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("root","password");
-        long group = ip.getImageGroup(id);
-        RawDataFile rdf = ip.LoadRawDataFile(id);
-        IOrbitImage io = ip.createOrbitImage(rdf,0);
-        System.out.println(io.getFilename()+" wxh: "+io.getWidth()+" x "+io.getHeight());
-        Raster raster = io.getTileData(1,1,false);
+        try {
+            ip.authenticateUser("root", "password");
+            long group = ip.getImageGroup(id);
+            RawDataFile rdf = ip.LoadRawDataFile(id);
+            IOrbitImage io = ip.createOrbitImage(rdf, 0);
+            System.out.println(io.getFilename() + " wxh: " + io.getWidth() + " x " + io.getHeight());
+            Raster raster = io.getTileData(1, 1, false);
 
-        WritableRaster writableRaster = raster.createCompatibleWritableRaster(1*512,1*512,512,512);
-        writableRaster.setDataElements(0, 0, raster);
-        writableRaster = writableRaster.createWritableTranslatedChild(0,0);
+            WritableRaster writableRaster = raster.createCompatibleWritableRaster(1 * 512, 1 * 512, 512, 512);
+            writableRaster.setDataElements(0, 0, raster);
+            writableRaster = writableRaster.createWritableTranslatedChild(0, 0);
 
-        BufferedImage bi = new BufferedImage(io.getColorModel(), writableRaster, false,null );
-        ImageIO.write(bi,"png",new File("d:/test.png"));
+            BufferedImage bi = new BufferedImage(io.getColorModel(), writableRaster, false, null);
+            ImageIO.write(bi, "png", new File("d:/test.png"));
 
-        
-        ip.close();
+            RawAnnotation anno = new RawAnnotation();
+            anno.setUserId("dummy");
+            anno.setDescription("testDesc");
+            anno.setModifyDate(new Date());
+            anno.setData(new byte[]{1, 2, 3});
+            anno.setRawDataFileId(id);
+            int num = ip.InsertRawAnnotation(anno);
+            System.out.println("anno: " + num);
 
+            RawAnnotation ra = ip.LoadRawAnnotation(num);
+            System.out.println(ra);
+
+
+            long startt = System.currentTimeMillis();
+            boolean del = ip.DeleteRawAnnotation(num);
+            long usedt = System.currentTimeMillis()-startt;
+            System.out.println("del: "+del+" usedt: "+usedt);
+
+
+        } finally {
+            ip.close();
+        }
 
 
     }

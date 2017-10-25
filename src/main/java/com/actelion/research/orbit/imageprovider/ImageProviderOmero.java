@@ -1,6 +1,6 @@
 /*
  *     Orbit, a versatile image analysis software for biological image-based quantification.
- *     Copyright (C) 2009 - 2017 Actelion Pharmaceuticals Ltd., Gewerbestrasse 16, CH-4123 Allschwil, Switzerland.
+ *     Copyright (C) 2009 - 2017  Idorsia Pharmaceuticals Ltd., Hegenheimermattweg 91, CH-4123 Allschwil, Switzerland.
  *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
@@ -35,7 +35,9 @@ import com.actelion.research.orbit.utils.RawMetaFactoryFile;
 import com.actelion.research.orbit.utils.RawUtilsCommon;
 import omero.ServerError;
 import omero.api.*;
+import omero.cmd.CmdCallbackI;
 import omero.cmd.Delete2Response;
+import omero.cmd.Response;
 import omero.gateway.Gateway;
 import omero.gateway.LoginCredentials;
 import omero.gateway.SecurityContext;
@@ -1480,8 +1482,14 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         long group = getAnnotationGroup(rawAnnotationId);
         Annotation annotation = loadAnnotation(rawAnnotationId);
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
-        Delete2Response response = (Delete2Response) dm.deleteObject(gatewayAndCtx.getCtx(group), annotation);
-        return (response.deletedObjects.get("ome.model.annotations.FileAnnotation").size() > 0);  // deleted one fileannotaiton (no id check here)
+        CmdCallbackI callback = dm.delete(gatewayAndCtx.getCtx(group), annotation);
+        Response response;
+        response = callback.loop(10,500);
+//        while ((response=callback.getResponse())!=null) {
+//            Thread.sleep(100);
+//        }
+        Delete2Response responseDel = (Delete2Response)response;
+        return (responseDel.deletedObjects.get("ome.model.annotations.FileAnnotation").size() > 0);  // deleted one fileannotaiton (no id check here)
     }
 
 
