@@ -108,6 +108,7 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
             log.debug("channel "+c+": "+channelName);
         }
         this.multiChannel = !isRGB();
+        System.out.println("isRGB: "+isRGB());
 
         RawPixelsStorePrx store = null;
         try {
@@ -164,11 +165,14 @@ public class OmeroImage implements IOrbitImageMultiChannel, Closeable {
      */
     private boolean isRGB() {
         return (sizeC==3) && (channelNames!=null) && (channelNames.length==3) &&
+                ((
+                    channelNames[0].equalsIgnoreCase("tl brightfield") && channelNames[1].equalsIgnoreCase("tl brightfield") && channelNames[2].equalsIgnoreCase("tl brightfield")
+                ) ||
                 (
                     (channelNames[0].equalsIgnoreCase("red")||channelNames[1].equalsIgnoreCase("red")||channelNames[2].equalsIgnoreCase("red")) &&
                     (channelNames[0].equalsIgnoreCase("green")||channelNames[1].equalsIgnoreCase("green")||channelNames[2].equalsIgnoreCase("green")) &&
                     (channelNames[0].equalsIgnoreCase("blue")||channelNames[1].equalsIgnoreCase("blue")||channelNames[2].equalsIgnoreCase("blue"))
-                );
+                ));
     }
 
 

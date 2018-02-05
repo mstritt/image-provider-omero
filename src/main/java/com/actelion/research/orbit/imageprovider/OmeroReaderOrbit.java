@@ -313,9 +313,9 @@ public class OmeroReaderOrbit extends FormatReader {
                 LogicalChannel red = channels.get(0).getLogicalChannel();
                 LogicalChannel green = channels.get(1).getLogicalChannel();
                 LogicalChannel blue = channels.get(2).getLogicalChannel();
-                if (red.getName()!=null && red.getName().getValue()!=null && !red.getName().getValue().equalsIgnoreCase("red")) isRGBImage = false;
-                else if (green.getName()!=null && green.getName().getValue()!=null && !green.getName().getValue().equalsIgnoreCase("green")) isRGBImage = false;
-                else if (blue.getName()!=null && blue.getName().getValue()!=null && !blue.getName().getValue().equalsIgnoreCase("blue")) isRGBImage = false;
+                if (red.getName()!=null && red.getName().getValue()!=null && !(red.getName().getValue().equalsIgnoreCase("red")||red.getName().getValue().equalsIgnoreCase("tl brightfield"))) isRGBImage = false;
+                else if (green.getName()!=null && green.getName().getValue()!=null && !(green.getName().getValue().equalsIgnoreCase("green")||red.getName().getValue().equalsIgnoreCase("tl brightfield"))) isRGBImage = false;
+                else if (blue.getName()!=null && blue.getName().getValue()!=null && !(blue.getName().getValue().equalsIgnoreCase("blue")||red.getName().getValue().equalsIgnoreCase("tl brightfield"))) isRGBImage = false;
             } else isRGBImage = false;
             logger.debug("isRGBImage: "+isRGBImage);
 

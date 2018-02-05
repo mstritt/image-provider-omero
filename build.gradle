@@ -29,7 +29,7 @@ buildscript {
 }
 
 def group = 'com.actelion.research'
-ext.versionDef = '1.5.1'
+ext.versionDef = '1.5.3'
 
 apply plugin: 'java'
 apply plugin: 'maven-publish'
@@ -103,7 +103,7 @@ dependencies {
     compile(group: 'org.springframework.ldap', name: 'spring-ldap', version: '1.3.0.RELEASE', classifier: 'all'){
         exclude group: 'org.testng', module: 'testng'
     }
-    compile(group: 'omero', name: 'blitz', version: '5.4.3-ice36-b77') {   //  5.3.5-ice36-b73  5.4.0-ice36-b74
+    compile(group: 'omero', name: 'blitz', version: '5.4.3-ice36-b77') {   //  5.3.5-ice36-b73  5.4.0-ice36-b74   5.4.3-ice36-b77
         exclude group: 'org.springframework.ldap', module: 'spring-ldap'
         exclude group: 'org.testng', module: 'testng'
         exclude group: 'hsqldb', module: 'hsqldb'
