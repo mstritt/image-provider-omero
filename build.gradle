@@ -44,6 +44,9 @@ repositories {
     mavenLocal()
     mavenCentral()
     maven {
+        url "http://bioinfo.idorsia.com:8081/nexus/content/groups/public"
+    }
+    maven {
         name 'Unidata'
         url 'https://artifacts.unidata.ucar.edu/content/repositories/unidata-releases'
     }
