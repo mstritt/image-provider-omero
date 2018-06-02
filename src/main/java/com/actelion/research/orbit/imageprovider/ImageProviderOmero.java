@@ -876,7 +876,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
          * e.g. if switch user
          */
         public void reset() {
-            //make sure to disconnect fist
+            //make sure to disconnect first
             if (gateway != null) {
                 gateway.disconnect();
             }
