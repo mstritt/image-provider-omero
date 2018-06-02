@@ -46,8 +46,6 @@ import omero.gateway.facility.BrowseFacility;
 import omero.gateway.facility.DataManagerFacility;
 import omero.gateway.facility.MetadataFacility;
 import omero.gateway.model.*;
-import omero.log.Logger;
-import omero.log.SimpleLogger;
 import omero.model.*;
 import omero.model.Image;
 import omero.model.enums.ChecksumAlgorithmSHA1160;
@@ -477,6 +475,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
      */
     @Override
     public BufferedImage getOverviewImage(RawDataFile rdf) throws Exception {
+        OmeroImage img = null;
         try {
             long group = getRdfGroup(rdf);
             BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
@@ -493,9 +492,16 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                     overview = image;
                 }
             }
-            if (overview != null) return new OmeroImage(overview.getId(), 0, getGatewayAndCtx()).getBufferedImage();
+            if (overview != null) {
+                img = new OmeroImage(overview.getId(), 0, getGatewayAndCtx());
+                return img.getBufferedImage();
+            }
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            if (img != null) {
+                img.close();
+            }
         }
 
         return null;
@@ -528,27 +534,18 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         cred.setEncryption(useSSL);
         cred.getUser().setUsername(username);
         cred.getUser().setPassword(password);
-        //Logger omeroLogger = new SimpleLogger();
-        Logger omeroLogger = new Slf4jWrapper(log);
-        Gateway gateway = new Gateway(omeroLogger);
         omeroUser = username;
         omeroPassword = password;
 
         try {
             getGatewayAndCtx().reset();
-            ExperimenterData user = gateway.connect(cred);
+            getGatewayAndCtx().getGateway().connect(cred);
             omeroUser = username;
             omeroPassword = password;
-            getGatewayAndCtx().reset();
             return true;
         } catch (DSOutOfServiceException e) {
             log.warn("login failed with username: " + username);
             return false;
-        } finally {
-            try {
-                if (gateway.isConnected()) gateway.disconnect();
-            } catch (Exception e) {
-            }
         }
     }
 
@@ -854,8 +851,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 cred.getUser().setUsername(omeroUser);
                 cred.getUser().setPassword(omeroPassword);
                 //cred.setCompression(0.8f);
-                SimpleLogger simpleLogger = new SimpleLogger();
-                gateway = new Gateway(simpleLogger);
+                gateway = new Gateway(new Slf4jWrapper(log));
                 ExperimenterData user = gateway.connect(cred);
                 ctx = new SecurityContext(user.getGroupId());    // default group
                 log.info("Omero server version: " + gateway.getServerVersion());
@@ -874,6 +870,10 @@ public class ImageProviderOmero extends ImageProviderAbstract {
          * e.g. if switch user
          */
         public void reset() {
+            //make sure to disconnect fist
+            if (gateway != null) {
+                gateway.disconnect();
+            }
             gateway = null;
         }
 
@@ -1768,15 +1768,16 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
         int id = 219; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("root","omero");
-        long group = ip.getImageGroup(id);
-        RawDataFile rdf = ip.LoadRawDataFile(id);
-        IOrbitImage image = ip.createOrbitImage(rdf,0);
-        System.out.println(image.getFilename());
-
-        ip.close();
-
-
+        try {
+            ip.authenticateUser("root","omero");
+            RawDataFile rdf = ip.LoadRawDataFile(id);
+            IOrbitImage image = ip.createOrbitImage(rdf,0);
+            System.out.println(image.getFilename());
+        } catch (Exception e) {
+            // TODO: handle exception
+        } finally {
+            ip.close();
+        }
 
     }
 }
