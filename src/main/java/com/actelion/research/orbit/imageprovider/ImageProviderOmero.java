@@ -1342,60 +1342,60 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         long lastGroup = -2;
         for (Annotation annotation : annotations) {
             long group = getAnnotationGroup(annotation.getId().getValue());
-            if (group!=lastGroup) {
+            try {
+                if (group!=lastGroup) {
+                    if (store!=null) {
+                        try {
+                            store.close();
+                        } catch (Exception e) {}
+                    }
+                    store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
+                    lastGroup = group;
+                }
+                ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                if (annotation instanceof FileAnnotation) {
+                    fa = new FileAnnotationData((FileAnnotation) annotation);
+                    //The id of the original file
+                    //of = getOriginalFile(fa.getFileID());
+                    store.setFileId(fa.getFileID());
+                    int offset = 0;
+                    long size = store.size();
+                    try {
+                        for (offset = 0; (offset + INC) < size; ) {
+                            stream.write(store.read(offset, INC));
+                            offset += INC;
+                        }
+                    } finally {
+                        stream.write(store.read(offset, (int) (size - offset)));
+                        stream.close();
+                    }
+                }
+
+                byte[] data = stream.toByteArray();
+                ByteArrayInputStream bis = new ByteArrayInputStream(data);
+                ObjectInputStream ois = new ObjectInputStream(bis);
+                try {
+                    Object obj = ois.readObject();
+                    RawAnnotation ra = (RawAnnotation) obj;
+                    ra.setRawAnnotationId((int) annotation.getId().getValue());
+                    rawAnnotations.add(ra);
+                } catch (ClassNotFoundException e) {
+                    log.warn("class for deserialization not found: " + e.getMessage());
+                } catch (InvalidClassException ice) {
+                    log.warn("invalid class exception");
+                }
+                finally {
+                    ois.close();
+                    bis.close();
+                }
+            } finally {
                 if (store!=null) {
                     try {
                         store.close();
                     } catch (Exception e) {}
                 }
-                store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
-                lastGroup = group;
             }
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            OriginalFile of;
-            if (annotation instanceof FileAnnotation) {
-                fa = new FileAnnotationData((FileAnnotation) annotation);
-                //The id of te original file
-                //of = getOriginalFile(fa.getFileID());
-                store.setFileId(fa.getFileID());
-                int offset = 0;
-                long size = store.size();
-                try {
-                    for (offset = 0; (offset + INC) < size; ) {
-                        stream.write(store.read(offset, INC));
-                        offset += INC;
-                    }
-                } finally {
-                    stream.write(store.read(offset, (int) (size - offset)));
-                    stream.close();
-                }
-            }
-
-            byte[] data = stream.toByteArray();
-            ByteArrayInputStream bis = new ByteArrayInputStream(data);
-            ObjectInputStream ois = new ObjectInputStream(bis);
-            try {
-                Object obj = ois.readObject();
-                RawAnnotation ra = (RawAnnotation) obj;
-                ra.setRawAnnotationId((int) annotation.getId().getValue());
-                rawAnnotations.add(ra);
-            } catch (ClassNotFoundException e) {
-                log.warn("class for deserialization not found: " + e.getMessage());
-            } catch (InvalidClassException ice) {
-                log.warn("invalid class exception");
-            }
-            finally {
-                ois.close();
-                bis.close();
-            }
-
         }
-        if (store!=null) {
-            try {
-                store.close();
-            } catch (Exception e) {}
-        }
-
         return rawAnnotations;
     }
 
