@@ -1294,30 +1294,27 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         long group = getImageGroup(rawAnnotation.getRawDataFileId());
 
         RawFileStorePrx rawFileStore = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
-        rawFileStore.setFileId(originalFile.getId().getValue());
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(rawAnnotation);
-        oos.flush();
-        oos.close();
-        bos.flush();
-        bos.close();
-
-        InputStream stream = new ByteArrayInputStream(bos.toByteArray());
-        long pos = 0;
-        int rlen;
-        byte[] buf = new byte[INC];
-        ByteBuffer bbuf;
-        while ((rlen = stream.read(buf)) > 0) {
-            rawFileStore.write(buf, pos, rlen);
-            pos += rlen;
-            bbuf = ByteBuffer.wrap(buf);
-            bbuf.limit(rlen);
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(bos);
+                InputStream stream = new ByteArrayInputStream(bos.toByteArray())) {
+            rawFileStore.setFileId(originalFile.getId().getValue());
+            oos.writeObject(rawAnnotation);
+            oos.flush();
+            bos.flush();
+            long pos = 0;
+            int rlen;
+            byte[] buf = new byte[INC];
+            ByteBuffer bbuf;
+            while ((rlen = stream.read(buf)) > 0) {
+                rawFileStore.write(buf, pos, rlen);
+                pos += rlen;
+                bbuf = ByteBuffer.wrap(buf);
+                bbuf.limit(rlen);
+            }
+            originalFile = rawFileStore.save();
+        } finally {
+            rawFileStore.close();
         }
-        stream.close();
-        originalFile = rawFileStore.save();
-        rawFileStore.close();
         return originalFile;
     }
 
