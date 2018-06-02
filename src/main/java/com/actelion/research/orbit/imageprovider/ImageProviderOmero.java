@@ -457,13 +457,19 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
         ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(group), rdf.getRawDataFileId());
         ThumbnailStorePrx store = gatewayAndCtx.getGateway().getThumbnailService(gatewayAndCtx.getCtx(group));
-        PixelsData pixels = imageData.getDefaultPixels();
-        store.setPixelsId(pixels.getId());
-        byte[] array = store.getThumbnailByLongestSide(omero.rtypes.rint(RawUtilsCommon.THUMBNAIL_WIDTH));
-        ByteArrayInputStream stream = new ByteArrayInputStream(array);
-        BufferedImage thumbnail = ImageIO.read(stream);
-        store.close();
-        return thumbnail;
+        ByteArrayInputStream stream = null;
+        try {
+            PixelsData pixels = imageData.getDefaultPixels();
+            store.setPixelsId(pixels.getId());
+            byte[] array = store.getThumbnailByLongestSide(omero.rtypes.rint(RawUtilsCommon.THUMBNAIL_WIDTH));
+            stream = new ByteArrayInputStream(array);
+            return ImageIO.read(stream);
+        } finally {
+            store.close();
+            if (stream != null) {
+                stream.close();
+            }
+        }
     }
 
     /**
