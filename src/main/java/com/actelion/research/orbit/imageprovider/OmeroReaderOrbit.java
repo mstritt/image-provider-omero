@@ -92,6 +92,10 @@ public class OmeroReaderOrbit extends FormatReader {
             // try to renew the store and try again
             try {
                 logger.debug("renewing store");
+                //Close the previous store
+                if (store != null) {
+                    store.close();
+                }
                 renewProxy();
                 plane = store.getTile(zct[0], zct[1], zct[2], x, y, w, h);
             } catch (Exception e1) {
