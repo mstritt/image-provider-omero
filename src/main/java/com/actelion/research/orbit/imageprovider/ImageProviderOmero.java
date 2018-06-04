@@ -46,8 +46,6 @@ import omero.gateway.facility.BrowseFacility;
 import omero.gateway.facility.DataManagerFacility;
 import omero.gateway.facility.MetadataFacility;
 import omero.gateway.model.*;
-import omero.log.Logger;
-import omero.log.SimpleLogger;
 import omero.model.*;
 import omero.model.Image;
 import omero.model.enums.ChecksumAlgorithmSHA1160;
@@ -459,13 +457,19 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
         ImageData imageData = browse.getImage(getGatewayAndCtx().getCtx(group), rdf.getRawDataFileId());
         ThumbnailStorePrx store = gatewayAndCtx.getGateway().getThumbnailService(gatewayAndCtx.getCtx(group));
-        PixelsData pixels = imageData.getDefaultPixels();
-        store.setPixelsId(pixels.getId());
-        byte[] array = store.getThumbnailByLongestSide(omero.rtypes.rint(RawUtilsCommon.THUMBNAIL_WIDTH));
-        ByteArrayInputStream stream = new ByteArrayInputStream(array);
-        BufferedImage thumbnail = ImageIO.read(stream);
-        store.close();
-        return thumbnail;
+        ByteArrayInputStream stream = null;
+        try {
+            PixelsData pixels = imageData.getDefaultPixels();
+            store.setPixelsId(pixels.getId());
+            byte[] array = store.getThumbnailByLongestSide(omero.rtypes.rint(RawUtilsCommon.THUMBNAIL_WIDTH));
+            stream = new ByteArrayInputStream(array);
+            return ImageIO.read(stream);
+        } finally {
+            store.close();
+            if (stream != null) {
+                stream.close();
+            }
+        }
     }
 
     /**
@@ -477,6 +481,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
      */
     @Override
     public BufferedImage getOverviewImage(RawDataFile rdf) throws Exception {
+        OmeroImage img = null;
         try {
             long group = getRdfGroup(rdf);
             BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
@@ -493,9 +498,16 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                     overview = image;
                 }
             }
-            if (overview != null) return new OmeroImage(overview.getId(), 0, getGatewayAndCtx()).getBufferedImage();
+            if (overview != null) {
+                img = new OmeroImage(overview.getId(), 0, getGatewayAndCtx());
+                return img.getBufferedImage();
+            }
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            if (img != null) {
+                img.close();
+            }
         }
 
         return null;
@@ -528,27 +540,18 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         cred.setEncryption(useSSL);
         cred.getUser().setUsername(username);
         cred.getUser().setPassword(password);
-        //Logger omeroLogger = new SimpleLogger();
-        Logger omeroLogger = new Slf4jWrapper(log);
-        Gateway gateway = new Gateway(omeroLogger);
         omeroUser = username;
         omeroPassword = password;
 
         try {
             getGatewayAndCtx().reset();
-            ExperimenterData user = gateway.connect(cred);
+            getGatewayAndCtx().getGateway().connect(cred);
             omeroUser = username;
             omeroPassword = password;
-            getGatewayAndCtx().reset();
             return true;
         } catch (DSOutOfServiceException e) {
             log.warn("login failed with username: " + username);
             return false;
-        } finally {
-            try {
-                if (gateway.isConnected()) gateway.disconnect();
-            } catch (Exception e) {
-            }
         }
     }
 
@@ -854,8 +857,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 cred.getUser().setUsername(omeroUser);
                 cred.getUser().setPassword(omeroPassword);
                 //cred.setCompression(0.8f);
-                SimpleLogger simpleLogger = new SimpleLogger();
-                gateway = new Gateway(simpleLogger);
+                gateway = new Gateway(new Slf4jWrapper(log));
                 ExperimenterData user = gateway.connect(cred);
                 ctx = new SecurityContext(user.getGroupId());    // default group
                 log.info("Omero server version: " + gateway.getServerVersion());
@@ -874,6 +876,10 @@ public class ImageProviderOmero extends ImageProviderAbstract {
          * e.g. if switch user
          */
         public void reset() {
+            //make sure to disconnect first
+            if (gateway != null) {
+                gateway.disconnect();
+            }
             gateway = null;
         }
 
@@ -1294,30 +1300,27 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         long group = getImageGroup(rawAnnotation.getRawDataFileId());
 
         RawFileStorePrx rawFileStore = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
-        rawFileStore.setFileId(originalFile.getId().getValue());
-
-        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ObjectOutputStream oos = new ObjectOutputStream(bos);
-        oos.writeObject(rawAnnotation);
-        oos.flush();
-        oos.close();
-        bos.flush();
-        bos.close();
-
-        InputStream stream = new ByteArrayInputStream(bos.toByteArray());
-        long pos = 0;
-        int rlen;
-        byte[] buf = new byte[INC];
-        ByteBuffer bbuf;
-        while ((rlen = stream.read(buf)) > 0) {
-            rawFileStore.write(buf, pos, rlen);
-            pos += rlen;
-            bbuf = ByteBuffer.wrap(buf);
-            bbuf.limit(rlen);
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(bos);
+                InputStream stream = new ByteArrayInputStream(bos.toByteArray())) {
+            rawFileStore.setFileId(originalFile.getId().getValue());
+            oos.writeObject(rawAnnotation);
+            oos.flush();
+            bos.flush();
+            long pos = 0;
+            int rlen;
+            byte[] buf = new byte[INC];
+            ByteBuffer bbuf;
+            while ((rlen = stream.read(buf)) > 0) {
+                rawFileStore.write(buf, pos, rlen);
+                pos += rlen;
+                bbuf = ByteBuffer.wrap(buf);
+                bbuf.limit(rlen);
+            }
+            originalFile = rawFileStore.save();
+        } finally {
+            rawFileStore.close();
         }
-        stream.close();
-        originalFile = rawFileStore.save();
-        rawFileStore.close();
         return originalFile;
     }
 
@@ -1345,60 +1348,60 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         long lastGroup = -2;
         for (Annotation annotation : annotations) {
             long group = getAnnotationGroup(annotation.getId().getValue());
-            if (group!=lastGroup) {
+            try {
+                if (group!=lastGroup) {
+                    if (store!=null) {
+                        try {
+                            store.close();
+                        } catch (Exception e) {}
+                    }
+                    store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
+                    lastGroup = group;
+                }
+                ByteArrayOutputStream stream = new ByteArrayOutputStream();
+                if (annotation instanceof FileAnnotation) {
+                    fa = new FileAnnotationData((FileAnnotation) annotation);
+                    //The id of the original file
+                    //of = getOriginalFile(fa.getFileID());
+                    store.setFileId(fa.getFileID());
+                    int offset = 0;
+                    long size = store.size();
+                    try {
+                        for (offset = 0; (offset + INC) < size; ) {
+                            stream.write(store.read(offset, INC));
+                            offset += INC;
+                        }
+                    } finally {
+                        stream.write(store.read(offset, (int) (size - offset)));
+                        stream.close();
+                    }
+                }
+
+                byte[] data = stream.toByteArray();
+                ByteArrayInputStream bis = new ByteArrayInputStream(data);
+                ObjectInputStream ois = new ObjectInputStream(bis);
+                try {
+                    Object obj = ois.readObject();
+                    RawAnnotation ra = (RawAnnotation) obj;
+                    ra.setRawAnnotationId((int) annotation.getId().getValue());
+                    rawAnnotations.add(ra);
+                } catch (ClassNotFoundException e) {
+                    log.warn("class for deserialization not found: " + e.getMessage());
+                } catch (InvalidClassException ice) {
+                    log.warn("invalid class exception");
+                }
+                finally {
+                    ois.close();
+                    bis.close();
+                }
+            } finally {
                 if (store!=null) {
                     try {
                         store.close();
                     } catch (Exception e) {}
                 }
-                store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
-                lastGroup = group;
             }
-            ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            OriginalFile of;
-            if (annotation instanceof FileAnnotation) {
-                fa = new FileAnnotationData((FileAnnotation) annotation);
-                //The id of te original file
-                //of = getOriginalFile(fa.getFileID());
-                store.setFileId(fa.getFileID());
-                int offset = 0;
-                long size = store.size();
-                try {
-                    for (offset = 0; (offset + INC) < size; ) {
-                        stream.write(store.read(offset, INC));
-                        offset += INC;
-                    }
-                } finally {
-                    stream.write(store.read(offset, (int) (size - offset)));
-                    stream.close();
-                }
-            }
-
-            byte[] data = stream.toByteArray();
-            ByteArrayInputStream bis = new ByteArrayInputStream(data);
-            ObjectInputStream ois = new ObjectInputStream(bis);
-            try {
-                Object obj = ois.readObject();
-                RawAnnotation ra = (RawAnnotation) obj;
-                ra.setRawAnnotationId((int) annotation.getId().getValue());
-                rawAnnotations.add(ra);
-            } catch (ClassNotFoundException e) {
-                log.warn("class for deserialization not found: " + e.getMessage());
-            } catch (InvalidClassException ice) {
-                log.warn("invalid class exception");
-            }
-            finally {
-                ois.close();
-                bis.close();
-            }
-
         }
-        if (store!=null) {
-            try {
-                store.close();
-            } catch (Exception e) {}
-        }
-
         return rawAnnotations;
     }
 
@@ -1771,15 +1774,16 @@ public class ImageProviderOmero extends ImageProviderAbstract {
 
         int id = 219; //219;
         ImageProviderOmero ip = new ImageProviderOmero();
-        ip.authenticateUser("root","omero");
-        long group = ip.getImageGroup(id);
-        RawDataFile rdf = ip.LoadRawDataFile(id);
-        IOrbitImage image = ip.createOrbitImage(rdf,0);
-        System.out.println(image.getFilename());
-
-        ip.close();
-
-
+        try {
+            ip.authenticateUser("root","omero");
+            RawDataFile rdf = ip.LoadRawDataFile(id);
+            IOrbitImage image = ip.createOrbitImage(rdf,0);
+            System.out.println(image.getFilename());
+        } catch (Exception e) {
+            // TODO: handle exception
+        } finally {
+            ip.close();
+        }
 
     }
 }
