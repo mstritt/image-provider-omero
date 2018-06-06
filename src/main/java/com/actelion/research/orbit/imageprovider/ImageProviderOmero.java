@@ -613,12 +613,13 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             }
 
             // add additional project for datasets not in a project
-            RawData rd = new RawData();
+            RawDataProject rd = new RawDataProject();
             rd.setRawDataId(-1);
             rd.setBioLabJournal("unassigned");
             rd.setDescription("datasets not assigned to a project");
             rd.setReferenceDate(new Date());
             rd.setModifyDate(new Date());
+            rd.setGroup(group);
             rdList.add(rd);
 
             Collections.sort(rdList, new Comparator<RawData>() {
@@ -668,12 +669,15 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         return groupList;
     }
 
-    public List<RawData> loadRawDataDatasets(RawData projectRD) {
+    public List<RawData> loadRawDataDatasets(RawData projectOrGroup) {
         List<RawData> rdList = new ArrayList<>();
         if (omeroUser != null && omeroUser.length() > 0) {
             try {
                 BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
                 Collection<ProjectData> projects;
+                RawDataProject projectRD = null;
+                if (projectOrGroup!=null && projectOrGroup instanceof RawDataProject) projectRD = (RawDataProject) projectOrGroup;
+
                 if (projectRD != null && projectRD.getRawDataId() > 0) {
                     long group = getProjectGroup((long)projectRD.getRawDataId());
                     projects = browse.getProjects(gatewayAndCtx.getCtx(group), getOwnerId(), Collections.singleton((long) projectRD.getRawDataId()));
@@ -692,8 +696,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                     }
                 } // datasets not assigned to projects (call all projects before calling this method without(=-1) projectID!)
                 else {
-                    for (RawData groupRd: loadGroups()) {
-                        long group = groupRd.getRawDataId();
+                        long group = -1;
+                        if (projectRD!=null) group = projectRD.getGroup();
                         HashSet<Long> loadedDatasetIDs = new HashSet<>();
                         projects = browse.getProjects(gatewayAndCtx.getCtx(group), getOwnerId()); // load all projects
                         Iterator<ProjectData> i = projects.iterator();
@@ -716,7 +720,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                                 rdList.add(createRawDataDataset(dataset2,group));
                             }
                         }
-                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
