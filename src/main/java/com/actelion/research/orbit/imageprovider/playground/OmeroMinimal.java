@@ -44,7 +44,7 @@ public class OmeroMinimal {
 
         String hostName = "localhost";
         String userName = "root";
-        String password = "omero";
+        String password = "password";
         int port = 4064;
         int imageId = 1;
         int tileX = 0;

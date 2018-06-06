@@ -9,6 +9,7 @@ Generic jar:
 Works with Omero 5.4.x. For other Omero versions please change dependencies in build.gradle.
 
 ### Updates:
+-1.5.5.1: bugfix: datasets w/o not assigned to projects appeared in all groups, Omero 5.3.x version
 -1.5.0: Omero 5.4.x
 -1.4.13: channelActive bugfix
 -1.4.12: bioformats 5.5.3
