@@ -640,7 +640,9 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 BrowseFacility browse = getGatewayAndCtx().getGateway().getFacility(BrowseFacility.class);
                 Set<GroupData> groups = browse.getAvailableGroups(gatewayAndCtx.getCtx(), gatewayAndCtx.getGateway().getLoggedInUser());
                 for (GroupData group: groups) {
-                    rdList.add(createRawDataGroup(group));
+                    if (!group.getName().equalsIgnoreCase("user")) {
+                        rdList.add(createRawDataGroup(group));
+                    }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
