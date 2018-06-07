@@ -6,9 +6,10 @@ Generic jar:
 
     gradle jar
 
-Works with Omero 5.4.x. For other Omero versions please change dependencies in build.gradle.
+Works with Omero 5.4.x. (x.x.x.2) and for Omero 5.3.x (x.x.x.1).
 
 ### Updates:
+-1.5.5.2: same but for Omero 5.4.x
 -1.5.5.1: bugfix: datasets w/o not assigned to projects appeared in all groups, Omero 5.3.x version
 -1.5.0: Omero 5.4.x
 -1.4.13: channelActive bugfix
