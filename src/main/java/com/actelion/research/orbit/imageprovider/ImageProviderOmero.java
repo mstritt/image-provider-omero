@@ -1307,7 +1307,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         RawFileStorePrx rawFileStore = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(bos);
-                InputStream stream = new ByteArrayInputStream(bos.toByteArray())) {
+                ) {
             rawFileStore.setFileId(originalFile.getId().getValue());
             oos.writeObject(rawAnnotation);
             oos.flush();
@@ -1316,6 +1316,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             int rlen;
             byte[] buf = new byte[INC];
             ByteBuffer bbuf;
+            InputStream stream = new ByteArrayInputStream(bos.toByteArray());
             while ((rlen = stream.read(buf)) > 0) {
                 rawFileStore.write(buf, pos, rlen);
                 pos += rlen;
