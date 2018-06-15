@@ -29,7 +29,7 @@ buildscript {
 }
 
 def group = 'com.actelion.research'
-ext.versionDef = '1.5.6.2'
+ext.versionDef = '1.5.7.2'
 
 apply plugin: 'java'
 apply plugin: 'maven-publish'
