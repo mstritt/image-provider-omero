@@ -1352,16 +1352,19 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         List<RawAnnotation> rawAnnotations = new ArrayList<>(annotations.size());
         RawFileStorePrx store = null;
         long lastGroup = -2;
-        for (Annotation annotation : annotations) {
-            long group = getAnnotationGroup(annotation.getId().getValue());
-            try {
-                if (group!=lastGroup) {
-                    if (store!=null) {
+        try {
+            for (Annotation annotation : annotations) {
+                long group = getAnnotationGroup(annotation.getId().getValue());
+                if (group != lastGroup) {
+                    if (store != null) {
                         try {
                             store.close();
-                        } catch (Exception e) {}
+                            store = null;
+                        } catch (Exception e) {
+                        }
                     }
-                    store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
+                    if (store==null)
+                        store = gatewayAndCtx.getGateway().getRawFileService(gatewayAndCtx.getCtx(group));
                     lastGroup = group;
                 }
                 ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -1395,11 +1398,11 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                     log.warn("class for deserialization not found: " + e.getMessage());
                 } catch (InvalidClassException ice) {
                     log.warn("invalid class exception");
-                }
-                finally {
+                } finally {
                     ois.close();
                     bis.close();
                 }
+              }  // annotations
             } finally {
                 if (store!=null) {
                     try {
@@ -1407,7 +1410,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                     } catch (Exception e) {}
                 }
             }
-        }
         return rawAnnotations;
     }
 
