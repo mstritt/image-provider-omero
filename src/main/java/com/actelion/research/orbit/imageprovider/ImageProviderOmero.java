@@ -78,6 +78,14 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public static final String ANNOTATION_NAMESPACE = "orbit/annotation";
     public static final String ANNOTATION_NOFILE_NAMESPACE = "orbit/annotation/nofile"; // special namespace for non file specific annotations
     public static final String ORBIT_METADATA_NAMESPACE = "orbit/metadata";
+    public static final String PROPERTY_OMERO_HOST = "OmeroHost";
+    public static final String PROPERTY_OMERO_PORT = "OmeroPort";
+    public static final String PROPERTY_OMERO_WEB_PORT = "OmeroWebPort";
+    public static final String PROPERTY_USE_SSL = "UseSSL";
+    public static final String PROPERTY_SEARCH_LIMIT = "SearchLimit";
+    public static final String PROPERTY_OMERO_USER_SCALEOUT = "OmeroUserScaleout";
+    public static final String PROPERTY_OMERO_PASSWORD_SCALEOUT = "OmeroPasswordScaleout";
+    public static final String COMMENT_ORBIT_OMERO_CONFIG = "Orbit Omero Config";
     private final ConcurrentHashMap<String, Object> hints = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<Long, Long> projectGroupMap = new ConcurrentHashMap<>();
     public static final ConcurrentHashMap<Long, Long> datasetGroupMap = new ConcurrentHashMap<>();
@@ -114,8 +122,9 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         props.put("OmeroPasswordScaleout", "");
         String userDir = System.getProperty("user.dir");
         String userHome = System.getProperty("user.home");
-
+        String propsFilename = null;
         try {
+
             boolean loaded = false;
             log.info("searching for " + configFile + " in current directory (" + userDir + ")");
             File config = new File(userDir + File.separator + configFile);
@@ -123,6 +132,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 props.load(new FileInputStream(config));
                 log.info("using config file: " + config.getAbsolutePath());
                 loaded = true;
+                propsFilename = config.getAbsolutePath();
             }
 
             if (!loaded)
@@ -131,7 +141,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             if (!config.exists()) {
                 File configTemplate = new File(userHome + File.separator + configFile + ".template");
                 try {
-                    props.store(new FileOutputStream(configTemplate), "Orbit Omero Config");
+                    props.store(new FileOutputStream(configTemplate), COMMENT_ORBIT_OMERO_CONFIG);
                 } catch (Exception e) {
                     log.warn("error saving Omero config template to: " + configTemplate.getAbsolutePath());
                 }
@@ -139,16 +149,21 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                 if (!loaded) {
                     props.load(new FileInputStream(config));
                     log.info("using config file: " + config.getAbsolutePath());
+                    propsFilename = config.getAbsolutePath();
                 }
             }
 
-            host = props.getProperty("OmeroHost");
-            port = Integer.parseInt(props.getProperty("OmeroPort"));
-            webport = Integer.parseInt(props.getProperty("OmeroWebPort"));
-            useSSL = Boolean.parseBoolean(props.getProperty("UseSSL"));
-            searchLimit = Integer.parseInt(props.getProperty("SearchLimit"));
-            omeroUserScaleout = props.getProperty("OmeroUserScaleout");
-            omeroPasswordScaleout = props.getProperty("OmeroPasswordScaleout");
+
+            host = props.getProperty(PROPERTY_OMERO_HOST);
+            port = Integer.parseInt(props.getProperty(PROPERTY_OMERO_PORT));
+            webport = Integer.parseInt(props.getProperty(PROPERTY_OMERO_WEB_PORT));
+            useSSL = Boolean.parseBoolean(props.getProperty(PROPERTY_USE_SSL));
+            searchLimit = Integer.parseInt(props.getProperty(PROPERTY_SEARCH_LIMIT));
+            omeroUserScaleout = props.getProperty(PROPERTY_OMERO_USER_SCALEOUT);
+            omeroPasswordScaleout = props.getProperty(PROPERTY_OMERO_PASSWORD_SCALEOUT);
+
+
+
         } catch (Exception e) {
             log.error("error loading omero config file", e);
         }
@@ -160,6 +175,47 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         log.info("Search limit: " + searchLimit);
         log.info("Omero User Scaleout: " + omeroUserScaleout);
 
+
+        if (propsFilename==null || !connectionOk(host,port)) {
+            if (!GraphicsEnvironment.isHeadless()) {
+                if (JOptionPane.showConfirmDialog(null,
+                        "Do you want to configure an Omero image server connection?\n\n" +
+                                "(If you want to reconfigure the Omero connection at a later point of time,\nsimply delete the OrbitOmero.properties file in your user home and program execution folder.)",
+                        "Configure Omero Server?", JOptionPane.YES_NO_OPTION)
+                        == JOptionPane.YES_OPTION) {
+                    OmeroConfig omeroConfig = null;
+                    try {
+                        if (propsFilename==null) {
+                            propsFilename = new File(userHome + File.separator + configFile).getAbsolutePath();
+                        }
+                        omeroConfig = new OmeroConfig(null, true, propsFilename);
+                        RawUtilsCommon.centerComponent(omeroConfig);
+                        omeroConfig.setVisible(true);
+                        host = omeroConfig.getHost();
+                        port = omeroConfig.getPort();
+                        webport = omeroConfig.getWebPort();
+                        useSSL = omeroConfig.isUseSSL();
+                        searchLimit = omeroConfig.getSearchLimit();
+                        omeroUserScaleout = omeroConfig.getScaleoutUser();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        if (omeroConfig!=null)
+                             omeroConfig.dispose();
+                    }
+                }
+            }
+
+            if (!connectionOk(host,port)) {
+                String p1 = userDir + File.separator + configFile;
+                String p2 = userHome + File.separator + configFile;
+                throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\nFor a different host/port please use the configuration dialog, or modify either\n" + p1 + " (priority) or\n" + p2 + ".\n(You can rename and use " + p1 + ".template)");
+            }
+        }
+
+    }
+
+    public static boolean connectionOk(String host, int port) {
         boolean connectionOk = false;
         try {
             SocketChannel socketChannel = SocketChannel.open();
@@ -169,12 +225,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         } catch (Exception e) {
             connectionOk = false;
         }
-        if (!connectionOk) {
-            String p1 = userDir + File.separator + configFile;
-            String p2 = userHome + File.separator + configFile;
-            throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\nFor a different host/port please modify either\n" + p1 + " (priority) or\n" + p2 + ".\n(You can rename and use "+p1+".template)");
-        }
-
+        return connectionOk;
     }
 
     public void clearMetaRDFHash() {
@@ -1200,7 +1251,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         //PointData pd = new PointData();
         long group = getImageGroup(rawAnnotation.getRawDataFileId());
 
-        // fist version: save as attached file
+        // first version: save as attached file
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
 
         String name = rawAnnotation.getDescription();
@@ -1221,6 +1272,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         originalFile.setMimetype(omero.rtypes.rstring(fileMimeType));
         //Now we save the originalFile object
         originalFile = (OriginalFile) dm.saveAndReturnObject(gatewayAndCtx.getCtx(group), originalFile);
+
 
         // upload the byte array
         originalFile = storeOriginalFile(rawAnnotation, originalFile);
