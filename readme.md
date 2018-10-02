@@ -6,16 +6,10 @@ Generic jar:
 
     gradle jar
 
-Works with Omero 5.4.x. (x.x.x.2) and for Omero 5.3.x (x.x.x.1).
+Works with Omero 5.4.x
 
 ### Updates:
--1.5.5.2: same but for Omero 5.4.x
--1.5.5.1: bugfix: datasets w/o not assigned to projects appeared in all groups, Omero 5.3.x version
--1.5.0: Omero 5.4.x
--1.4.13: channelActive bugfix
--1.4.12: bioformats 5.5.3
--1.4.3: Omero 5.3.1 support
--1.4.2: >8bit,<16bit bugfix, isRGBImage() 
+- 1.5.9: save model bugfix
 
 ####TODO:
 - getRawDataFileUrl(): auto login / session handling (so far one has to login via webinterface first)

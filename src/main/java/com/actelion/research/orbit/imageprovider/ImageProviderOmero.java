@@ -471,7 +471,8 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     @Override
     public URL getRawDataFileUrl(RawDataFile rdf) {
         try {
-            return new URL(getWebserviceBase() + "/webgateway/render_image/" + rdf.getRawDataFileId());
+            //return new URL(getWebserviceBase() + "/webgateway/render_image/" + rdf.getRawDataFileId());
+            return new URL(getWebserviceBase() + "/webgateway/archived_files/download/" + rdf.getRawDataFileId());
         } catch (Exception e) {
             return null;
         }
@@ -1250,7 +1251,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         //ROIData roi = new ROIData();
         //PointData pd = new PointData();
         long group = getImageGroup(rawAnnotation.getRawDataFileId());
-
         // first version: save as attached file
         DataManagerFacility dm = gatewayAndCtx.getGateway().getFacility(DataManagerFacility.class);
 
@@ -1745,6 +1745,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     }
 
     public long getImageGroup(long imageId) {
+        if (imageId<0) return getGroups().get(0);   // special case for model annotations (not assigned to an image), use first group of user
         long group = -1;
         if (rdfGroupMap.containsKey(imageId)) {
             group = rdfGroupMap.get(imageId);
