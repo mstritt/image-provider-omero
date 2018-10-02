@@ -111,7 +111,7 @@ dependencies {
         exclude group: 'org.testng', module: 'testng'
         exclude group: 'hsqldb', module: 'hsqldb'
     }
-    ompile 'org.apache.httpcomponents:httpcomponents-client:4.5.6'
+    compile 'org.apache.httpcomponents:httpcomponents-client:4.5.6'
 
 
 }
