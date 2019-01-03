@@ -38,9 +38,9 @@ import java.util.Properties;
 /**
  * Configuration dialog to set values in a OrbitOmero.properties file.
  */
-public class OmeroConfig extends JDialog {
+public class OmeroConfigDialog extends JDialog {
 
-    private static final Logger logger = LoggerFactory.getLogger(OmeroConfig.class);
+    private static final Logger logger = LoggerFactory.getLogger(OmeroConfigDialog.class);
     private final JLabel labServer = new JLabel("Omero Host/IP");
     private final JLabel labPort = new JLabel("Port (usually 4064)");
     private final JLabel labWebPort = new JLabel("Web-Port (usually 4080) [optional]");
@@ -60,7 +60,7 @@ public class OmeroConfig extends JDialog {
     private final Properties props;
     private final String propsFileName;
 
-    public OmeroConfig(Dialog owner, boolean modal, final String propsFileName) {
+    public OmeroConfigDialog(Dialog owner, boolean modal, final String propsFileName) {
         super(owner, modal);
         this.propsFileName = propsFileName;
         this.props = new Properties();
@@ -200,11 +200,11 @@ public class OmeroConfig extends JDialog {
     }
 
     public static void main(String[] args) throws IOException {
-        OmeroConfig omeroConfig = new OmeroConfig(null,true, "d:/test.props");
-        omeroConfig.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        RawUtilsCommon.centerComponent(omeroConfig);
-        omeroConfig.setVisible(true);
-        omeroConfig.dispose();
+        OmeroConfigDialog omeroConfigDialog = new OmeroConfigDialog(null,true, "d:/test.props");
+        omeroConfigDialog.setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        RawUtilsCommon.centerComponent(omeroConfigDialog);
+        omeroConfigDialog.setVisible(true);
+        omeroConfigDialog.dispose();
 
     }
 }

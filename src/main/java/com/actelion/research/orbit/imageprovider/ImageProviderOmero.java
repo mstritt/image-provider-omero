@@ -99,7 +99,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private String omeroPasswordScaleout = "";
     private String host = "localhost";
     private int port = 4064;
-    private int webport = 8080;
+    private int webport = 443; // 443 for https (http not supported here)
     private transient GatewayAndCtx gatewayAndCtx = new GatewayAndCtx();
     protected int searchLimit = 1000;
     protected boolean listAllSeries = true;
@@ -110,6 +110,25 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private String configFile = "OrbitOmero.properties";
     private boolean useSSL = false;
 
+
+    public ImageProviderOmero(OmeroConf omeroConf) {
+        if (omeroConf==null) {
+            throw new IllegalStateException("omeroConf must not be null");
+        }
+        host = omeroConf.getHost();
+        port = omeroConf.getPort();
+        webport = omeroConf.getWebPort();
+        useSSL = omeroConf.isUseSSL();
+        searchLimit = omeroConf.getSearchLimit();
+        omeroUserScaleout = omeroConf.getUserScaleout();
+        omeroPasswordScaleout = omeroConf.getPasswordScaleout();
+
+        if (!connectionOk(host,port)) {
+            throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\n"+omeroConf);
+        }  else {
+            log.debug("omero connection (host,port) ok");
+        }
+    }
 
     public ImageProviderOmero() {
         Properties props = new Properties();
@@ -183,25 +202,25 @@ public class ImageProviderOmero extends ImageProviderAbstract {
                                 "(If you want to reconfigure the Omero connection at a later point of time,\nsimply delete the OrbitOmero.properties file in your user home and program execution folder.)",
                         "Configure Omero Server?", JOptionPane.YES_NO_OPTION)
                         == JOptionPane.YES_OPTION) {
-                    OmeroConfig omeroConfig = null;
+                    OmeroConfigDialog omeroConfigDialog = null;
                     try {
                         if (propsFilename==null) {
                             propsFilename = new File(userHome + File.separator + configFile).getAbsolutePath();
                         }
-                        omeroConfig = new OmeroConfig(null, true, propsFilename);
-                        RawUtilsCommon.centerComponent(omeroConfig);
-                        omeroConfig.setVisible(true);
-                        host = omeroConfig.getHost();
-                        port = omeroConfig.getPort();
-                        webport = omeroConfig.getWebPort();
-                        useSSL = omeroConfig.isUseSSL();
-                        searchLimit = omeroConfig.getSearchLimit();
-                        omeroUserScaleout = omeroConfig.getScaleoutUser();
+                        omeroConfigDialog = new OmeroConfigDialog(null, true, propsFilename);
+                        RawUtilsCommon.centerComponent(omeroConfigDialog);
+                        omeroConfigDialog.setVisible(true);
+                        host = omeroConfigDialog.getHost();
+                        port = omeroConfigDialog.getPort();
+                        webport = omeroConfigDialog.getWebPort();
+                        useSSL = omeroConfigDialog.isUseSSL();
+                        searchLimit = omeroConfigDialog.getSearchLimit();
+                        omeroUserScaleout = omeroConfigDialog.getScaleoutUser();
                     } catch (Exception e) {
                         e.printStackTrace();
                     } finally {
-                        if (omeroConfig!=null)
-                             omeroConfig.dispose();
+                        if (omeroConfigDialog !=null)
+                             omeroConfigDialog.dispose();
                     }
                 }
             }
@@ -874,8 +893,9 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public void close() throws IOException {
         if (gatewayAndCtx != null) {
             try {
-                if (gatewayAndCtx.getGateway().isConnected())
+                if (gatewayAndCtx.getGateway().isConnected()) {
                     gatewayAndCtx.getGateway().disconnect();
+                }
                 log.info("Omero gateway closed");
             } catch (Exception e) {
                 e.printStackTrace();
@@ -1833,17 +1853,18 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public static void main(String[] args) throws Exception {
         // just a demo
 
-        int id = 219; //219;
-        ImageProviderOmero ip = new ImageProviderOmero();
+        int id = 54; // omero image id
+        ImageProviderAbstract ip = new ImageProviderOmero(new OmeroConf("localhost",4064,true));
         try {
-            ip.authenticateUser("root","omero");
+            ip.authenticateUser("root","password");
             RawDataFile rdf = ip.LoadRawDataFile(id);
             IOrbitImage image = ip.createOrbitImage(rdf,0);
-            System.out.println(image.getFilename());
+            System.out.println(rdf.getFileName()+" -> "+image.getFilename());
         } catch (Exception e) {
-            // TODO: handle exception
+            e.printStackTrace();
         } finally {
             ip.close();
+            System.exit(0);
         }
 
     }
