@@ -1853,7 +1853,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public static void main(String[] args) throws Exception {
         // just a demo
 
-        int id = 4; // omero image id
+        int id = 54; // omero image id
         ImageProviderAbstract ip = new ImageProviderOmero(new OmeroConf("localhost",4064,true));
         try {
             ip.authenticateUser("root","password");
