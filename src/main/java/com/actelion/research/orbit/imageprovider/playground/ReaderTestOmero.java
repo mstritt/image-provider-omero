@@ -32,22 +32,22 @@ import java.io.File;
 public class ReaderTestOmero {
     public static void main(String[] args) throws Exception {
 
-        int id = 19; // 101 219;
+        int id = 4; // 101 219;
         ImageProviderOmero ip = new ImageProviderOmero();
         try {
-            ip.authenticateUser("root", "password");
+            ip.authenticateUser("root", "omero");
             long group = ip.getImageGroup(id);
             RawDataFile rdf = ip.LoadRawDataFile(id);
             IOrbitImage io = ip.createOrbitImage(rdf, 0);
             System.out.println(io.getFilename() + " wxh: " + io.getWidth() + " x " + io.getHeight());
-            Raster raster = io.getTileData(15, 15, false);
+            Raster raster = io.getTileData(1, 1, false);
 
-            WritableRaster writableRaster = raster.createCompatibleWritableRaster(15 * 512, 15 * 512, 512, 512);
+            WritableRaster writableRaster = raster.createCompatibleWritableRaster(1 * 512, 1 * 512, 512, 512);
             writableRaster.setDataElements(0, 0, raster);
             writableRaster = writableRaster.createWritableTranslatedChild(0, 0);
 
             BufferedImage bi = new BufferedImage(io.getColorModel(), writableRaster, false, null);
-            ImageIO.write(bi, "png", new File("d:/test.png"));
+            ImageIO.write(bi, "png", new File("c:/temp/test.png"));
 
 //            RawAnnotation anno = new RawAnnotation();
 //            anno.setUserId("dummy");
