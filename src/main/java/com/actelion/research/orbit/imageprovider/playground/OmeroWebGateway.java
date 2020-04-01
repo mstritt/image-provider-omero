@@ -33,22 +33,31 @@ import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.LayeredConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLContexts;
+//import org.apache.http.conn.ssl.SSLContexts;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.http.conn.ssl.TrustStrategy;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.BasicCookieStore;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.BasicHttpClientConnectionManager;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.BasicHttpContext;
 import org.apache.http.protocol.HttpContext;
 
 import javax.net.ssl.SSLContext;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.security.KeyManagementException;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -74,32 +83,61 @@ public class OmeroWebGateway {
     /**
      * HttpClient which works with untrusted SSL certificates. For use in production the standard HttpClient should be used.
      */
-    private HttpClient getHttpClient(){
-        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory> create();
-        ConnectionSocketFactory plainSF = new PlainConnectionSocketFactory();
-        registryBuilder.register("http", plainSF);
-        try {
-            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
-            TrustStrategy anyTrustStrategy = new TrustStrategy() {
-                @Override
-                public boolean isTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-                    return true;
-                }
-            };
-            SSLContext sslContext = SSLContexts.custom().useTLS().loadTrustMaterial(trustStore, anyTrustStrategy)
-                    .build();
-            LayeredConnectionSocketFactory sslSF = new SSLConnectionSocketFactory(sslContext,
-                    SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
-            registryBuilder.register("https", sslSF);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        Registry<ConnectionSocketFactory> registry = registryBuilder.build();
-        PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager(registry);
-        HttpClient httpclient = HttpClientBuilder.create().setConnectionManager(connManager).build();
+//    private HttpClient getHttpClient(){
+//        RegistryBuilder<ConnectionSocketFactory> registryBuilder = RegistryBuilder.<ConnectionSocketFactory> create();
+//        ConnectionSocketFactory plainSF = new PlainConnectionSocketFactory();
+//        registryBuilder.register("http", plainSF);
+//        try {
+//            KeyStore trustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+//            TrustStrategy anyTrustStrategy = new TrustStrategy() {
+//                @Override
+//                public boolean isTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+//                    return true;
+//                }
+//            };
+//            SSLContext sslContext = SSLContexts.custom().useTLS().loadTrustMaterial(trustStore, anyTrustStrategy)
+//                    .build();
+//            LayeredConnectionSocketFactory sslSF = new SSLConnectionSocketFactory(sslContext,
+//                    SSLConnectionSocketFactory.ALLOW_ALL_HOSTNAME_VERIFIER);
+//            registryBuilder.register("https", sslSF);
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//        Registry<ConnectionSocketFactory> registry = registryBuilder.build();
+//        PoolingHttpClientConnectionManager connManager = new PoolingHttpClientConnectionManager(registry);
+//        HttpClient httpclient = HttpClientBuilder.create().setConnectionManager(connManager).build();
+//
+//        return httpclient;
+//    }
 
-        return httpclient;
+    private HttpClient getHttpClient() {
+        TrustStrategy acceptingTrustStrategy = (cert, authType) -> true;
+
+        SSLContext sslContext = null;
+        try {
+            sslContext = SSLContexts.custom().loadTrustMaterial(null, acceptingTrustStrategy).build();
+        } catch (NoSuchAlgorithmException | KeyManagementException | KeyStoreException e) {
+            e.printStackTrace();
+        }
+        assert sslContext != null;
+        SSLConnectionSocketFactory sslsf = new SSLConnectionSocketFactory(sslContext,
+                new String[]{"TLSv1.2"}, null, //SSLConnectionSocketFactory.());
+                NoopHostnameVerifier.INSTANCE);
+
+        Registry<ConnectionSocketFactory> socketFactoryRegistry =
+                RegistryBuilder.<ConnectionSocketFactory> create()
+                        .register("https", sslsf)
+                        .register("http", new PlainConnectionSocketFactory())
+                        .build();
+
+        BasicHttpClientConnectionManager connectionManager =
+                new BasicHttpClientConnectionManager(socketFactoryRegistry);
+
+//        CloseableHttpClient httpClient = HttpClients.createDefault();
+        return HttpClients.custom().setSSLSocketFactory(sslsf)
+                .setConnectionManager(connectionManager).build();
     }
+
 
 
     public WebContext createWebContext() throws IOException {
@@ -111,6 +149,7 @@ public class OmeroWebGateway {
 
         // get token
         HttpGet request1 = new HttpGet(omeroConf.getWebURL()+"/api/v0/token/");
+//        HttpGet request1 = new HttpGet("http://localhost:4080/api/v0/token/");
         HttpResponse response1 = httpClient.execute(request1,httpContext);
         String responseString = IOUtils.toString(response1.getEntity().getContent(), "UTF-8");
         String token = responseString.substring(10,responseString.length()-2);
@@ -134,7 +173,8 @@ public class OmeroWebGateway {
         request.setHeader("X-CSRFToken",token);
         request.setHeader("Referer",omeroConf.getWebURL());
         HttpResponse response = httpClient.execute(request,httpContext);
-        //String responseString2 = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
+        // The below line is necessary due to: https://stackoverflow.com/questions/4612573/exception-using-httprequest-execute-invalid-use-of-singleclientconnmanager-c/6737645
+        String responseString2 = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
         System.out.println("http context created");
 
         WebContext webContext = new WebContext(httpClient, httpContext, token);
@@ -168,8 +208,8 @@ public class OmeroWebGateway {
             request.setHeader("Referer",omeroConf.getWebURL());
             HttpResponse response = httpClient.execute(request,httpContext);
             if (response!=null) System.out.println("web context closed");
-            //String responseString = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
-            //System.out.println(responseString);
+//            String responseString = IOUtils.toString(response.getEntity().getContent(), "UTF-8");
+//            System.out.println(responseString);
         }
 
         public HttpClient getHttpClient() {
@@ -200,11 +240,12 @@ public class OmeroWebGateway {
 
 
     public static void main(String[] args) throws IOException {
-        OmeroWebGateway omeroWebGateway = new OmeroWebGateway(new OmeroConf("localhost",4064,444,true,1000,"","",1),"root","password");
+        OmeroWebGateway omeroWebGateway = new OmeroWebGateway(new OmeroConf("localhost",4064,4080,false,1000,"","",1),"root","omero");
         try (WebContext webContext = omeroWebGateway.createWebContext()) {
              // download image
             long startt = System.currentTimeMillis();
-            omeroWebGateway.downloadImage(1,new FileOutputStream("d:/test.ndpi"),webContext);
+            File out = new File(System.getProperty("java.io.tmpdir"),"test.ndpi");
+            omeroWebGateway.downloadImage(1,new FileOutputStream(out),webContext);
             long usedt = System.currentTimeMillis()-startt;
             System.out.println("used time: "+usedt/1000+"s");
         }
