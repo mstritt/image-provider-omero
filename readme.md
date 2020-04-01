@@ -6,10 +6,10 @@ Generic jar:
 
     gradle jar
 
-Works with Omero 5.4.x
+Works with Omero 5.6.x
 
 ### Updates:
-- 1.5.9: save model bugfix
+- 1.7.0: Omero 5.6.x compatible, Gradle >= 6
 
 ####TODO:
 - getRawDataFileUrl(): auto login / session handling (so far one has to login via webinterface first)
