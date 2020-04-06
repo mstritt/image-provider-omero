@@ -1,4 +1,4 @@
-#Orbit Omero Connector
+# Orbit Omero Connector
 
 ### Orbit Image Provider Omero
 
@@ -10,8 +10,9 @@ Works with Omero 5.6.x
 
 ### Updates:
 - 1.7.0: Omero 5.6.x compatible, Gradle >= 6
+- 1.7.1: Gradle changes, improvement to playground applications
 
-####TODO:
+#### TODO:
 - getRawDataFileUrl(): auto login / session handling (so far one has to login via webinterface first)
 - getRawDataFileUrl(): resolution level  (but only user for Android Downloader)
 
