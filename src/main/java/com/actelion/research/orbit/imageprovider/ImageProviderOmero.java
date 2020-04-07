@@ -111,25 +111,6 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private boolean useSSL = false;
 
 
-    public ImageProviderOmero(OmeroConf omeroConf) {
-        if (omeroConf==null) {
-            throw new IllegalStateException("omeroConf must not be null");
-        }
-        host = omeroConf.getHost();
-        port = omeroConf.getPort();
-        webport = omeroConf.getWebPort();
-        useSSL = omeroConf.isUseSSL();
-        searchLimit = omeroConf.getSearchLimit();
-        omeroUserScaleout = omeroConf.getUserScaleout();
-        omeroPasswordScaleout = omeroConf.getPasswordScaleout();
-
-        if (!connectionOk(host,port)) {
-            throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\n"+omeroConf);
-        }  else {
-            log.debug("omero connection (host,port) ok");
-        }
-    }
-
     public ImageProviderOmero() {
         Properties props = new Properties();
         props.put("OmeroHost", host);
@@ -228,10 +209,34 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             if (!connectionOk(host,port)) {
                 String p1 = userDir + File.separator + configFile;
                 String p2 = userHome + File.separator + configFile;
-                throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\nFor a different host/port please use the configuration dialog, or modify either\n" + p1 + " (priority) or\n" + p2 + ".\n(You can rename and use " + p1 + ".template)");
+                throw new IllegalStateException("Cannot connect to Omero server.\n" +
+                        "Tried to connect on " + host + ":" + port + ".\n" +
+                        "For a different host/port please use the configuration dialog, or modify either\n" +
+                        p1 + " (priority) or\n" +
+                        p2 + ".\n(You can rename and use "
+                        + p1 + ".template)");
             }
         }
 
+    }
+
+    public ImageProviderOmero(OmeroConf omeroConf) {
+        if (omeroConf==null) {
+            throw new IllegalStateException("omeroConf must not be null");
+        }
+        host = omeroConf.getHost();
+        port = omeroConf.getPort();
+        webport = omeroConf.getWebPort();
+        useSSL = omeroConf.isUseSSL();
+        searchLimit = omeroConf.getSearchLimit();
+        omeroUserScaleout = omeroConf.getUserScaleout();
+        omeroPasswordScaleout = omeroConf.getPasswordScaleout();
+
+        if (!connectionOk(host,port)) {
+            throw new IllegalStateException("Cannot connect to Omero server.\nTried to connect on " + host + ":" + port + ".\n"+omeroConf);
+        }  else {
+            log.debug("omero connection (host,port) ok");
+        }
     }
 
     public static boolean connectionOk(String host, int port) {

@@ -33,8 +33,7 @@ public class ReaderTestOmero {
     public static void main(String[] args) throws Exception {
 
         int id = 4; // 101 219;
-        ImageProviderOmero ip = new ImageProviderOmero();
-        try {
+        try (ImageProviderOmero ip = new ImageProviderOmero()) {
             ip.authenticateUser("root", "omero");
             long group = ip.getImageGroup(id);
             RawDataFile rdf = ip.LoadRawDataFile(id);
@@ -47,7 +46,8 @@ public class ReaderTestOmero {
             writableRaster = writableRaster.createWritableTranslatedChild(0, 0);
 
             BufferedImage bi = new BufferedImage(io.getColorModel(), writableRaster, false, null);
-            ImageIO.write(bi, "png", new File("c:/temp/test.png"));
+            File out = new File(System.getProperty("java.io.tmpdir"), "test.ndpi");
+            ImageIO.write(bi, "png", out);
 
 //            RawAnnotation anno = new RawAnnotation();
 //            anno.setUserId("dummy");
@@ -68,8 +68,6 @@ public class ReaderTestOmero {
 //            System.out.println("del: "+del+" usedt: "+usedt);
 
 
-        } finally {
-            ip.close();
         }
 
 

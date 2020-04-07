@@ -72,7 +72,11 @@ public class OmeroConf implements Serializable {
     }
 
     public String getWebURL() {
-        return "https://"+getHost()+":"+getWebPort();
+        if(useSSL) {
+            return "https://" + getHost() + ":" + getWebPort();
+        } else {
+            return "http://" + getHost() + ":" + getWebPort();
+        }
     }
 
     public String getHost() {

@@ -17,54 +17,72 @@
  *
  */
 
-buildscript {
-    repositories {
-        mavenCentral()
-        //Needed only for SNAPSHOT versions
-        //maven { url "http://oss.sonatype.org/content/repositories/snapshots/" }
-    }
-    dependencies {
-        classpath "io.codearte.gradle.nexus:gradle-nexus-staging-plugin:0.5.3"
-    }
+plugins {
+    id 'java'
+    id 'maven-publish'
+    id 'signing'
+    id 'application'
 }
 
 def group = 'com.actelion.research'
-ext.versionDef = '1.7.0'
+ext.versionDef = '1.7.1'
+archivesBaseName = "image-provider-omero"
+def archiveDescr = "Orbit Image Provider Omero"
 
-apply plugin: 'java'
-apply plugin: 'maven-publish'
 if (file('custom.gradle').exists()) {
     apply from: 'custom.gradle'
 }
 
-sourceCompatibility = 1.7
-targetCompatibility = 1.7
-
-repositories {
-    mavenLocal()
-    mavenCentral()
-    maven {
-        url 'http://artifacts.openmicroscopy.org/artifactory/maven/'
-    }
-    maven {
-        name 'Unidata'
-        url 'https://artifacts.unidata.ucar.edu/content/repositories/unidata-releases'
-    }
-    maven {
-        url 'http://artifacts.openmicroscopy.org/artifactory/maven/'
-    }
-    maven {
-        url 'https://repository.jboss.org/nexus/content/repositories/thirdparty-releases/' // for jai-codec
-    }
+application {
+    mainClassName 'com.actelion.research.orbit.imageprovider.ImageProviderOmero'
 }
 
-if (JavaVersion.current().isJava8Compatible()) {
-    allprojects {
-        tasks.withType(Javadoc) {
-            options.addStringOption('Xdoclint:none', '-quiet')
+
+tasks.withType(JavaCompile) {
+    def javaVersion = JavaVersion.VERSION_11
+
+    // enforce Java 11 as the source + target + compile time level
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+
+    compileJava.doFirst {
+        if (JavaVersion.current() != javaVersion)
+            throw new IllegalStateException("Compiler version mismatch; required is "
+                    + javaVersion + ", but using " + JavaVersion.current());
+    }
+
+    if (JavaVersion.current().isJava8Compatible()) {
+        allprojects {
+            tasks.withType(Javadoc) {
+                options.addStringOption('Xdoclint:none', '-quiet')
+            }
         }
     }
 }
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'http://artifacts.openmicroscopy.org/artifactory/maven/'
+        content {
+            includeGroup "omero"
+            includeGroup "ome"
+            includeGroup "org.openmicroscopy"
+            includeModule "woolz", "JWlz"
+            includeModule "cisd", "jhdf5"
+        }
+    }
+    maven {
+        url 'https://repository.jboss.org/nexus/content/repositories/thirdparty-releases/' // for jai-codec
+        content {
+            // for jai-codec
+            includeVersion "com.sun.media", "jai-codec", "1.1.3"
+            includeVersion "javax.media", "jai-core", "1.1.3"
+        }
+    }
+}
+
+
 task sourceJar(type: Jar) {
     from sourceSets.main.allJava
 }
@@ -72,24 +90,57 @@ task docJar(type: Jar, dependsOn: 'javadoc') {
     from javadoc.destinationDir
 }
 
+
+
 publishing {
     publications {
-        mavenJava(org.gradle.api.publish.maven.MavenPublication) {
-            groupId group
-            artifactId 'image-provider-omero'
-            version versionDef
+        mavenJava(MavenPublication) {
+            groupId = group
+            artifactId = archivesBaseName
             from components.java
-            artifact sourceJar {
-                classifier "sources"
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
             }
-            artifact docJar {
-                classifier "javadoc"
-            }
-            pom.withXml {
-                asNode().appendNode('description', 'Orbit Image Provider Omero')
+            pom {
+                name = archiveDescr
+                description = archiveDescr
+                url = 'https://github.com/mstritt/image-provider-omero'
+                licenses {
+                    license {
+                        name = 'GNU General Public License v3.0'
+                        url = 'http://www.gnu.org/licenses/gpl-3.0.html'
+                    }
+                }
+                developers {
+                    [developer {
+                        id = 'mstritt'
+                        name = 'Manuel Stritt'
+                        email = 'manuel.stritt@idorsia.com'
+                    },
+                     developer {
+                         id = 'jfkotw'
+                         name = 'Jonathan Fuller'
+                         email = 'jonathan.fuller@idorsia.com'
+                     }]
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/mstritt/image-provider-omero.git'
+                    developerConnection = 'scm:git:ssh://github.com/mstritt/image-provider-omero.git'
+                    url = 'https://github.com/mstritt/image-provider-omero'
+                }
             }
         }
+
     }
+}
+
+signing {
+    sign publishing.publications.mavenJava
 }
 
 
@@ -99,22 +150,19 @@ dependencies {
     implementation 'com.sun.media:jai-codec:1.1.3'
     implementation 'javax.media:jai-core:1.1.3'
     implementation 'org.apache.commons:commons-math3:3.6.1'
-    testCompile 'junit:junit:[4.0,)'
 
-    implementation (group: 'ome', name:'formats-gpl', version:'6.4.0')
-
-    implementation (group: 'org.springframework.ldap', name: 'spring-ldap', version: '1.3.0.RELEASE', classifier: 'all'){
+    implementation(group: 'org.springframework.ldap', name: 'spring-ldap', version: '1.3.0.RELEASE', classifier: 'all'){
         exclude group: 'org.testng', module: 'testng'
     }
-    implementation (group: 'org.openmicroscopy', name: 'omero-gateway', version: '5.6.3') {
-        exclude group: 'org.springframework.ldap', module: 'spring-ldap'
-        exclude group: 'org.testng', module: 'testng'
-        exclude group: 'hsqldb', module: 'hsqldb'
+
+    implementation("org.openmicroscopy:omero-gateway:5.6.3") {
+        // Conflicts with `net.java.dev.jna`
+        exclude group: "com.sun.jna", module: "jna"
     }
+    implementation("org.apache.httpcomponents:httpclient:4.5.7")
+    implementation("org.apache.httpcomponents:httpcomponents-client:4.5.7")
 
-
-    implementation 'org.apache.httpcomponents:httpcomponents-client:4.5.6'
-
+    testImplementation 'junit:junit:4.13'
 
 }
 
