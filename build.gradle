@@ -24,11 +24,11 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id 'application'
-    id 'io.codearte.nexus-staging' version '0.21.2'
+//    id 'io.codearte.nexus-staging' version '0.21.2'
 }
 
 def group = 'com.actelion.research'
-ext.versionDef = '1.7.1'
+ext.versionDef = '1.7.2'
 archivesBaseName = "image-provider-omero"
 def archiveDescr = "Orbit Image Provider Omero"
 
@@ -159,7 +159,12 @@ dependencies {
         exclude group: 'org.testng', module: 'testng'
     }
 
-    implementation group: 'edu.ucar', name: 'cdm', version: '4.6.13'
+    implementation('edu.ucar:cdm:4.6.13') {
+        exclude (group:'com.amazonaws', module: 'aws-java-sdk-core')
+        exclude (group:'com.amazonaws', module: 'aws-java-sdk-s3')
+        exclude (group:'com.amazonaws', module: 'aws-java-sdk-kms')
+        because ('CDM imports really old aws libraries that cause issues with newer versions of AWS libraries')
+    }
     implementation("org.openmicroscopy:omero-gateway:5.6.3") {
         // Conflicts with `net.java.dev.jna`
         exclude group: "com.sun.jna", module: "jna"
