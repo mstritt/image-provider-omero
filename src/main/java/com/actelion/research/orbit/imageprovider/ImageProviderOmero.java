@@ -59,6 +59,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -82,6 +83,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public static final String PROPERTY_OMERO_PORT = "OmeroPort";
     public static final String PROPERTY_OMERO_WEB_PORT = "OmeroWebPort";
     public static final String PROPERTY_USE_SSL = "UseSSL";
+    public static final String PROPERTY_USE_WEBSOCKETS = "UseWebSockets";
     public static final String PROPERTY_SEARCH_LIMIT = "SearchLimit";
     public static final String PROPERTY_OMERO_USER_SCALEOUT = "OmeroUserScaleout";
     public static final String PROPERTY_OMERO_PASSWORD_SCALEOUT = "OmeroPasswordScaleout";
@@ -100,6 +102,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     private String host = "localhost";
     private int port = 4064;
     private int webport = 443; // 443 for https (http not supported here)
+    public static boolean useWebSockets = false;
     private transient GatewayAndCtx gatewayAndCtx = new GatewayAndCtx();
     protected int searchLimit = 1000;
     protected boolean listAllSeries = true;
@@ -117,6 +120,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         props.put("OmeroPort", String.valueOf(port));
         props.put("OmeroWebPort", String.valueOf(webport));
         props.put("UseSSL", String.valueOf(useSSL));
+        props.put("UseWebSockets", String.valueOf(useWebSockets));
         props.put("SearchLimit", String.valueOf(searchLimit));
         props.put("OmeroUserScaleout", "");
         props.put("OmeroPasswordScaleout", "");
@@ -158,6 +162,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             port = Integer.parseInt(props.getProperty(PROPERTY_OMERO_PORT));
             webport = Integer.parseInt(props.getProperty(PROPERTY_OMERO_WEB_PORT));
             useSSL = Boolean.parseBoolean(props.getProperty(PROPERTY_USE_SSL));
+            useWebSockets = Boolean.parseBoolean(props.getProperty(PROPERTY_USE_WEBSOCKETS));
             searchLimit = Integer.parseInt(props.getProperty(PROPERTY_SEARCH_LIMIT));
             omeroUserScaleout = props.getProperty(PROPERTY_OMERO_USER_SCALEOUT);
             omeroPasswordScaleout = props.getProperty(PROPERTY_OMERO_PASSWORD_SCALEOUT);
@@ -172,6 +177,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         log.info("Omero port: " + port);
         log.info("Omero web port: " + webport);
         log.info("Omero use SSL: " + useSSL);
+        log.info("Omero use WebSockets: " + useWebSockets);
         log.info("Search limit: " + searchLimit);
         log.info("Omero User Scaleout: " + omeroUserScaleout);
 
@@ -228,6 +234,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
         port = omeroConf.getPort();
         webport = omeroConf.getWebPort();
         useSSL = omeroConf.isUseSSL();
+        useWebSockets = omeroConf.isUseWebSockets();
         searchLimit = omeroConf.getSearchLimit();
         omeroUserScaleout = omeroConf.getUserScaleout();
         omeroPasswordScaleout = omeroConf.getPasswordScaleout();
@@ -240,16 +247,21 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     }
 
     public static boolean connectionOk(String host, int port) {
-        boolean connectionOk = false;
-        try {
-            SocketChannel socketChannel = SocketChannel.open();
-            socketChannel.configureBlocking(true);
-            connectionOk = socketChannel.connect(new InetSocketAddress(host, port));
-            socketChannel.close();
-        } catch (Exception e) {
-            connectionOk = false;
+        if (useWebSockets) {
+            // For websockets we cannot check via InetSocketAddress. Another test should be done here, but for now we just return true.
+            return true;
+        } else {
+            boolean connectionOk = false;
+            try {
+                SocketChannel socketChannel = SocketChannel.open();
+                socketChannel.configureBlocking(true);
+                connectionOk = socketChannel.connect(new InetSocketAddress(host, port));
+                socketChannel.close();
+            } catch (Exception e) {
+                connectionOk = false;
+            }
+            return connectionOk;
         }
-        return connectionOk;
     }
 
     public void clearMetaRDFHash() {
@@ -607,6 +619,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
     public AbstractOrbitTree createOrbitTree() {
         return new JOrbitTreeOmero(this, "Omero", Arrays.asList(new TreeNodeGroup(this, null), new TreeNodeProject(this, null), new TreeNodeDataset(this, null)));
     }
+
 
     @Override
     public boolean authenticateUser(String username, String password) {

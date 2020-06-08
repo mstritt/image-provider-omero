@@ -26,6 +26,7 @@ public class OmeroConf implements Serializable {
     private int port;
     private int webPort;
     private boolean useSSL;
+    private boolean useWebSockets;
     private int searchLimit;
     private String userScaleout;
     private String passwordScaleout;
@@ -47,11 +48,16 @@ public class OmeroConf implements Serializable {
         this(host,port,webPort,useSSL,searchLimit,userScaleout,passwordScaleout,1);
     }
 
-    public OmeroConf(String host, int port, int webPort, boolean useSSL, int searchLimit, String userScaleout, String passwordScaleout, int serverNumber) {
+    public OmeroConf(String host, int port, int webPort, boolean useSSL,  int searchLimit, String userScaleout, String passwordScaleout, int serverNumber) {
+        this(host,port,webPort,useSSL,false,searchLimit,userScaleout,passwordScaleout,serverNumber);
+    }
+
+    public OmeroConf(String host, int port, int webPort, boolean useSSL, boolean useWebSockets, int searchLimit, String userScaleout, String passwordScaleout, int serverNumber) {
         this.host = host;
         this.port = port;
         this.webPort = webPort;
         this.useSSL = useSSL;
+        this.useWebSockets = useWebSockets;
         this.searchLimit = searchLimit;
         this.userScaleout = userScaleout;
         this.passwordScaleout = passwordScaleout;
@@ -65,6 +71,7 @@ public class OmeroConf implements Serializable {
                 ", port=" + port +
                 ", webPort=" + webPort +
                 ", useSSL=" + useSSL +
+                ", useWebSockets=" + useWebSockets +
                 ", searchLimit=" + searchLimit +
                 ", userScaleout='" + userScaleout + '\'' +
                 ", serverNumber=" + serverNumber +
@@ -109,6 +116,14 @@ public class OmeroConf implements Serializable {
 
     public void setUseSSL(boolean useSSL) {
         this.useSSL = useSSL;
+    }
+
+    public boolean isUseWebSockets() {
+        return useWebSockets;
+    }
+
+    public void setUseWebSockets(boolean useWebSockets) {
+        this.useWebSockets = useWebSockets;
     }
 
     public int getSearchLimit() {

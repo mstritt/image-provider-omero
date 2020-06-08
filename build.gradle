@@ -24,11 +24,11 @@ plugins {
     id 'maven-publish'
     id 'signing'
     id 'application'
-//    id 'io.codearte.nexus-staging' version '0.21.2'
+    id 'io.codearte.nexus-staging' version '0.21.2'
 }
 
 def group = 'com.actelion.research'
-ext.versionDef = '1.7.2'
+ext.versionDef = '1.7.3'
 archivesBaseName = "image-provider-omero"
 def archiveDescr = "Orbit Image Provider Omero"
 

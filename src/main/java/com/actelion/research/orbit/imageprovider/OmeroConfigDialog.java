@@ -53,6 +53,7 @@ public class OmeroConfigDialog extends JDialog {
     private final IntegerTextField tfSearchLimit = new IntegerTextField(1000,1000,1,99999);
     
     private final JCheckBox cbSSL = new JCheckBox("SSL encryption",true);
+    private final JCheckBox cbWebSockets = new JCheckBox("Use WebSockets",false);
     private final JButton btnOk = new JButton("Ok");
     private final JButton btnCancel = new JButton("Cancel");
     private final JButton btnTestConnection = new JButton("Test Connection");
@@ -76,7 +77,7 @@ public class OmeroConfigDialog extends JDialog {
         setResizable(false);
         getRootPane().setBorder(new EmptyBorder(20, 20, 20, 20));
         
-        setLayout(new GridLayout(7,1,20,20));
+        setLayout(new GridLayout(8,1,20,20));
 
         tfHost.setHorizontalAlignment(SwingConstants.TRAILING);
         tfScaleoutUser.setHorizontalAlignment(SwingConstants.TRAILING);
@@ -94,6 +95,11 @@ public class OmeroConfigDialog extends JDialog {
         p = new Panel(new GridLayout(1,2,20,20));
         p.add(new JPanel());
         p.add(cbSSL);
+        add(p);
+
+        p = new Panel(new GridLayout(1,2,20,20));
+        p.add(new JPanel());
+        p.add(cbWebSockets);
         add(p);
 
         p = new Panel(new GridLayout(1,2,20,20));
@@ -131,6 +137,7 @@ public class OmeroConfigDialog extends JDialog {
         tfSearchLimit.setInt(Integer.parseInt(this.props.getProperty(ImageProviderOmero.PROPERTY_SEARCH_LIMIT,String.valueOf(1000))));
         tfScaleoutUser.setText(this.props.getProperty(ImageProviderOmero.PROPERTY_OMERO_USER_SCALEOUT,"omero"));
         cbSSL.setSelected(Boolean.parseBoolean(this.props.getProperty(ImageProviderOmero.PROPERTY_USE_SSL,String.valueOf(true))));
+        cbWebSockets.setSelected(Boolean.parseBoolean(this.props.getProperty(ImageProviderOmero.PROPERTY_USE_WEBSOCKETS,String.valueOf(false))));
 
         pack();
 
@@ -156,6 +163,7 @@ public class OmeroConfigDialog extends JDialog {
         btnTestConnection.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                ImageProviderOmero.useWebSockets = cbWebSockets.isSelected();
                 boolean connectionOk = ImageProviderOmero.connectionOk(getHost(),getPort());
                 logger.info("connection test: "+connectionOk);
                 labTestResult.setText(connectionOk?"OK":"FAILED");
@@ -171,6 +179,7 @@ public class OmeroConfigDialog extends JDialog {
         props.put(ImageProviderOmero.PROPERTY_OMERO_WEB_PORT, String.valueOf(tfWebPort.getInt()));
         props.put(ImageProviderOmero.PROPERTY_SEARCH_LIMIT, String.valueOf(tfSearchLimit.getInt()));
         props.put(ImageProviderOmero.PROPERTY_USE_SSL, String.valueOf(cbSSL.isSelected()));
+        props.put(ImageProviderOmero.PROPERTY_USE_WEBSOCKETS, String.valueOf(cbWebSockets.isSelected()));
         props.put(ImageProviderOmero.PROPERTY_OMERO_USER_SCALEOUT, tfScaleoutUser.getText().trim());
         props.store(new FileOutputStream(propsFileName),ImageProviderOmero.COMMENT_ORBIT_OMERO_CONFIG);
     }
@@ -197,6 +206,10 @@ public class OmeroConfigDialog extends JDialog {
     
     public boolean isUseSSL() {
         return cbSSL.isSelected();
+    }
+
+    public boolean isUseWebSockets() {
+        return cbWebSockets.isSelected();
     }
 
     public static void main(String[] args) throws IOException {
