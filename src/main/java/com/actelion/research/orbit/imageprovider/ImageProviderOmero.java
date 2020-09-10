@@ -640,6 +640,7 @@ public class ImageProviderOmero extends ImageProviderAbstract {
             return true;
         } catch (DSOutOfServiceException e) {
             log.warn("login failed with username: " + username);
+            log.warn(e.getMessage());
             return false;
         }
     }
